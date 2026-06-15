@@ -59,7 +59,7 @@ A professional GUI tool for verifying ZAP (Zed Attack Proxy) vulnerability fixes
 ### GUI Mode (Recommended)
 
 ```bash
-python zapguard_gui.py
+python run_gui.py
 ```
 
 1. Enter the target URL (the application you want to verify)
@@ -69,34 +69,54 @@ python zapguard_gui.py
 
 ### CLI Mode
 
-For automated/scripted usage, edit `config.py` with your settings:
-
-```python
-BASE_URL = "http://your-target-url.com"
-ZAP_REPORT_PATH = r"path/to/your/zap_report.html"
-REQUEST_TIMEOUT = 20
-MAX_WORKERS = 10
+```bash
+python run_cli.py -u http://your-target-url.com -r path/to/zap_report.html
 ```
 
-Then run:
+CLI options:
+```
+-u, --url       Target URL to verify against (required)
+-r, --report    Path to ZAP report file (required)
+-o, --output    Output directory for reports (default: current directory)
+-t, --timeout   Request timeout in seconds (default: 20)
+-w, --workers   Number of parallel workers (default: 10)
+```
+
+### Install as Package (Optional)
+
 ```bash
-python zap_verify.py
+pip install -e .
+```
+
+Then run from anywhere:
+```bash
+zapguard      # GUI mode
+zapguard-cli  # CLI mode
 ```
 
 ## Project Structure
 
 ```
 zapguard/
-├── zapguard_gui.py        # Main GUI application
-├── zap_verify.py          # CLI entry point
-├── config.py              # Configuration settings
-├── models.py              # Data models (Alert, TestResult, etc.)
-├── parsers.py             # ZAP report parsers (HTML, XML, JSON)
-├── http_client.py         # HTTP client with retry logic
-├── vulnerability_tests.py # Individual vulnerability test classes
-├── verifier.py            # Test orchestration with parallel execution
-├── reports.py             # HTML/CSV report generators
+├── .github/               # GitHub templates
+│   ├── ISSUE_TEMPLATE/
+│   └── pull_request_template.md
+├── zapguard/              # Main package
+│   ├── __init__.py
+│   ├── gui.py             # GUI application
+│   ├── cli.py             # CLI application
+│   ├── config.py          # Configuration settings
+│   ├── models.py          # Data models (Alert, TestResult, etc.)
+│   ├── parsers.py         # ZAP report parsers (HTML, XML, JSON)
+│   ├── http_client.py     # HTTP client with retry logic
+│   ├── vulnerability_tests.py  # Vulnerability test classes
+│   ├── verifier.py        # Test orchestration
+│   └── reports.py         # HTML/CSV report generators
+├── run_gui.py             # GUI entry point
+├── run_cli.py             # CLI entry point
+├── config.example.py      # Example configuration
 ├── requirements.txt       # Python dependencies
+├── pyproject.toml         # Package configuration
 ├── LICENSE                # MIT License
 └── README.md              # This file
 ```
