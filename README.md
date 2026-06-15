@@ -39,7 +39,7 @@ A professional GUI tool for verifying ZAP (Zed Attack Proxy) vulnerability fixes
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/vishwabaalan07/zapguard.git
+   git clone https://github.com/vishwabaalan07/ZapGuard.git
    cd zapguard
    ```
 
