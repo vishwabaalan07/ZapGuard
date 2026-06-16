@@ -533,6 +533,7 @@ class ZapGuardWindow(QMainWindow):
 
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("http://example.com or http://10.0.0.1")
+        self.url_input.setText("https://")
         self.url_input.setFont(QFont("Segoe UI", 10))
         self.url_input.setFixedHeight(38)
         self.url_input.textChanged.connect(self._validate_url)
