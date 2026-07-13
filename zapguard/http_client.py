@@ -1,23 +1,45 @@
 """
 HTTP client with SSL bypass and retry logic for vulnerability testing.
+Uses the requests library for better performance and reliability.
 """
 
-import socket
-import ssl
-import urllib.request
-import urllib.error
 import urllib.parse
+import urllib3
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# Suppress SSL warnings since we intentionally bypass certificate verification for testing
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class HTTPClient:
     """HTTP client with SSL certificate bypass for testing."""
 
-    def __init__(self, base_url: str, timeout: int = 20):
+    def __init__(self, base_url: str, timeout: int = 20, stop_event=None):
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
-        self.ssl_context = ssl.create_default_context()
-        self.ssl_context.check_hostname = False
-        self.ssl_context.verify_mode = ssl.CERT_NONE
+        self.stop_event = stop_event
+
+        # Create session with connection pooling
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'ZAP-Verification-Tool/1.0'
+        })
+
+        # Configure retry strategy
+        retry_strategy = Retry(
+            total=2,
+            backoff_factor=0.5,
+            status_forcelist=[502, 503, 504],
+        )
+        adapter = HTTPAdapter(
+            max_retries=retry_strategy,
+            pool_connections=10,
+            pool_maxsize=20
+        )
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
 
     def get_full_url(self, endpoint: str) -> str:
         """Convert endpoint to full URL."""
@@ -38,76 +60,61 @@ class HTTPClient:
             return path
         return url
 
+    def is_stopped(self) -> bool:
+        """Check if stop was requested."""
+        return self.stop_event is not None and self.stop_event.is_set()
+
     def request(self, url: str, method: str = "GET", headers: dict = None,
-                data: bytes = None, follow_redirects: bool = True,
-                retries: int = 2) -> dict:
-        """Make HTTP request and return response details with retry logic."""
-        last_error = None
+                data: bytes = None, follow_redirects: bool = True) -> dict:
+        """Make HTTP request and return response details."""
+        if self.is_stopped():
+            return {'status_code': 0, 'headers': {}, 'content': '', 'url': url, 'error': 'Cancelled'}
 
-        for attempt in range(retries + 1):
-            try:
-                req = urllib.request.Request(url, method=method, data=data)
-                req.add_header('User-Agent', 'ZAP-Verification-Tool/1.0')
+        try:
+            response = self.session.request(
+                method=method,
+                url=url,
+                headers=headers,
+                data=data,
+                timeout=self.timeout,
+                allow_redirects=follow_redirects,
+                verify=False  # Skip SSL verification for testing
+            )
 
-                if headers:
-                    for key, value in headers.items():
-                        req.add_header(key, value)
+            if self.is_stopped():
+                return {'status_code': 0, 'headers': {}, 'content': '', 'url': url, 'error': 'Cancelled'}
 
-                if not follow_redirects:
-                    class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-                        def redirect_request(self, req, fp, code, msg, headers, newurl):
-                            return None
+            return {
+                'status_code': response.status_code,
+                'headers': dict(response.headers),
+                'content': response.text,
+                'url': response.url
+            }
 
-                    opener = urllib.request.build_opener(
-                        NoRedirectHandler(),
-                        urllib.request.HTTPSHandler(context=self.ssl_context)
-                    )
-                else:
-                    opener = urllib.request.build_opener(
-                        urllib.request.HTTPSHandler(context=self.ssl_context)
-                    )
-
-                # Use longer timeout on retry attempts
-                current_timeout = self.timeout if attempt == 0 else self.timeout * 2
-                response = opener.open(req, timeout=current_timeout)
-
-                return {
-                    'status_code': response.status,
-                    'headers': dict(response.headers),
-                    'content': response.read().decode('utf-8', errors='ignore'),
-                    'url': response.url
-                }
-
-            except urllib.error.HTTPError as e:
-                return {
-                    'status_code': e.code,
-                    'headers': dict(e.headers) if e.headers else {},
-                    'content': e.read().decode('utf-8', errors='ignore') if e.fp else '',
-                    'url': url,
-                    'error': str(e)
-                }
-            except (urllib.error.URLError, TimeoutError, socket.timeout) as e:
-                last_error = str(e.reason) if hasattr(e, 'reason') else str(e)
-                if attempt < retries:
-                    continue
-                return {
-                    'status_code': 0,
-                    'headers': {},
-                    'content': '',
-                    'url': url,
-                    'error': last_error
-                }
-            except Exception as e:
-                last_error = str(e)
-                if attempt < retries and 'timed out' in str(e).lower():
-                    continue
-                return {
-                    'status_code': 0,
-                    'headers': {},
-                    'content': '',
-                    'url': url,
-                    'error': last_error
-                }
+        except requests.exceptions.Timeout as e:
+            return {
+                'status_code': 0,
+                'headers': {},
+                'content': '',
+                'url': url,
+                'error': 'Cancelled' if self.is_stopped() else f'Timeout: {str(e)}'
+            }
+        except requests.exceptions.ConnectionError as e:
+            return {
+                'status_code': 0,
+                'headers': {},
+                'content': '',
+                'url': url,
+                'error': 'Cancelled' if self.is_stopped() else f'Connection error: {str(e)}'
+            }
+        except requests.exceptions.RequestException as e:
+            return {
+                'status_code': 0,
+                'headers': {},
+                'content': '',
+                'url': url,
+                'error': 'Cancelled' if self.is_stopped() else str(e)
+            }
 
     def head(self, url: str) -> dict:
         """Make HEAD request."""
@@ -119,3 +126,11 @@ class HTTPClient:
     def get(self, url: str) -> dict:
         """Make GET request."""
         return self.request(url, method="GET")
+
+    def post(self, url: str, data: bytes = None, headers: dict = None) -> dict:
+        """Make POST request."""
+        return self.request(url, method="POST", data=data, headers=headers)
+
+    def close(self):
+        """Close the session and release connections."""
+        self.session.close()

@@ -22,7 +22,8 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QProgressBar,
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
-    QTextEdit, QMessageBox, QGraphicsDropShadowEffect, QSizePolicy
+    QTextEdit, QMessageBox, QGraphicsDropShadowEffect, QSizePolicy,
+    QComboBox
 )
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QFont, QColor, QIcon, QPixmap, QPainter, QBrush, QPen, QLinearGradient, QPainterPath
@@ -44,9 +45,46 @@ def is_valid_url(url: str) -> bool:
         if not result.netloc:
             return False
         netloc = result.netloc.split(':')[0]
-        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-        domain_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$'
-        return bool(re.match(ip_pattern, netloc) or re.match(domain_pattern, netloc))
+
+        # Check if it looks like an IP address attempt
+        # This includes: all-numeric segments, or 4 segments where most start with digits
+        segments = netloc.split('.')
+
+        # If exactly 4 segments and at least 3 are purely numeric, treat as IP attempt
+        # This catches: 10.41.113.60, 10.41.2235.3, 10.41.113.60a
+        if len(segments) == 4:
+            numeric_count = sum(1 for seg in segments if seg.isdigit())
+            if numeric_count >= 3:
+                # Validate strictly as IP - all segments must be digits 0-255
+                try:
+                    octets = [int(seg) for seg in segments]
+                    return all(0 <= octet <= 255 for octet in octets)
+                except ValueError:
+                    return False
+
+        # Check if it's a valid domain
+        if netloc.lower() == 'localhost':
+            return True
+
+        # Domain must have at least one dot (for TLD)
+        if '.' not in netloc:
+            return False
+
+        # Domain must have at least one non-numeric segment (TLD can't be all digits)
+        if all(seg.isdigit() for seg in segments):
+            return False
+
+        # Valid domain pattern: alphanumeric segments with hyphens allowed in middle
+        domain_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$'
+        if not re.match(domain_pattern, netloc):
+            return False
+
+        # TLD must contain at least one letter (can't be purely numeric)
+        tld = segments[-1]
+        if tld.isdigit():
+            return False
+
+        return True
     except Exception:
         return False
 
@@ -174,7 +212,7 @@ class ValidationWorker(QThread):
         return self._stop_event.is_set()
 
     def run(self):
-        client = HTTPClient(self.base_url, self.timeout)
+        client = HTTPClient(self.base_url, self.timeout, self._stop_event)
         results = []
 
         tasks: List[Tuple[Alert, Instance]] = []
@@ -220,8 +258,11 @@ class ValidationWorker(QThread):
         test_class = get_test_class(alert.plugin_id)
         test = test_class(client)
         try:
-            return test.test(alert, instance)
+            result = test.test(alert, instance)
+            return None if self.is_stopped() else result
         except Exception as e:
+            if self.is_stopped():
+                return None
             return TestResult(
                 alert_name=alert.name,
                 plugin_id=alert.plugin_id,
@@ -351,6 +392,57 @@ class ZapGuardWindow(QMainWindow):
         self.url_input.setStyleSheet(input_style_valid)
         self.report_input.setStyleSheet(input_style_valid)
         self.output_input.setStyleSheet(input_style_valid)
+
+        # Style combo boxes
+        combo_style = f"""
+            QComboBox {{
+                background: {theme['bg_input']};
+                border: 1px solid {theme['border']};
+                border-radius: 6px;
+                padding: 0 8px;
+                color: {theme['text_primary']};
+            }}
+            QComboBox:focus {{
+                border: 2px solid {theme['accent']};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid {theme['text_muted']};
+                margin-right: 5px;
+            }}
+            QComboBox QAbstractItemView {{
+                background: {theme['bg_secondary']};
+                border: 1px solid {theme['border']};
+                color: {theme['text_primary']};
+                selection-background-color: {theme['accent']};
+            }}
+        """
+        self.scheme_combo.setStyleSheet(combo_style)
+        self.status_filter.setStyleSheet(combo_style)
+        self.risk_filter.setStyleSheet(combo_style)
+
+        # Style search input
+        self.search_input.setStyleSheet(f"""
+            QLineEdit {{
+                background: {theme['bg_input']};
+                border: 1px solid {theme['border']};
+                border-radius: 6px;
+                padding: 0 8px;
+                color: {theme['text_primary']};
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {theme['accent']};
+            }}
+            QLineEdit::placeholder {{
+                color: {theme['text_muted']};
+            }}
+        """)
 
         # Update labels - bold in light mode for better visibility
         label_weight = "600" if not self._dark_mode else "normal"
@@ -531,9 +623,16 @@ class ZapGuardWindow(QMainWindow):
         self.url_label.setFont(QFont("Segoe UI", 10))
         url_row.addWidget(self.url_label)
 
+        # Scheme dropdown (non-editable)
+        self.scheme_combo = QComboBox()
+        self.scheme_combo.addItems(["https://", "http://"])
+        self.scheme_combo.setFont(QFont("Segoe UI", 10))
+        self.scheme_combo.setFixedSize(90, 38)
+        self.scheme_combo.currentTextChanged.connect(self._on_scheme_changed)
+        url_row.addWidget(self.scheme_combo)
+
         self.url_input = QLineEdit()
-        self.url_input.setPlaceholderText("http://example.com or http://10.0.0.1")
-        self.url_input.setText("https://")
+        self.url_input.setPlaceholderText("example.com or 10.0.0.1")
         self.url_input.setFont(QFont("Segoe UI", 10))
         self.url_input.setFixedHeight(38)
         self.url_input.textChanged.connect(self._validate_url)
@@ -690,6 +789,26 @@ class ZapGuardWindow(QMainWindow):
         """)
         btn_row.addWidget(self.export_html_btn)
 
+        self.export_pdf_btn = QPushButton("Export PDF")
+        self.export_pdf_btn.setFont(QFont("Segoe UI", 10, QFont.Medium))
+        self.export_pdf_btn.setCursor(Qt.PointingHandCursor)
+        self.export_pdf_btn.setFixedHeight(40)
+        self.export_pdf_btn.setMinimumWidth(100)
+        self.export_pdf_btn.setEnabled(False)
+        self.export_pdf_btn.clicked.connect(self._export_pdf)
+        self.export_pdf_btn.setStyleSheet("""
+            QPushButton {
+                background: #dc2626;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 0 16px;
+            }
+            QPushButton:hover { background: #ef4444; }
+            QPushButton:disabled { background: #374151; color: #6b7280; }
+        """)
+        btn_row.addWidget(self.export_pdf_btn)
+
         self.export_csv_btn = QPushButton("Export CSV")
         self.export_csv_btn.setFont(QFont("Segoe UI", 10, QFont.Medium))
         self.export_csv_btn.setCursor(Qt.PointingHandCursor)
@@ -763,6 +882,35 @@ class ZapGuardWindow(QMainWindow):
 
         results_header.addStretch()
 
+        # Filter controls
+        filter_label = QLabel("Filter:")
+        filter_label.setFont(QFont("Segoe UI", 9))
+        filter_label.setStyleSheet("color: #64748b;")
+        results_header.addWidget(filter_label)
+
+        self.status_filter = QComboBox()
+        self.status_filter.addItems(["All Status", "Pass", "Fail", "Not Testable", "Error"])
+        self.status_filter.setFont(QFont("Segoe UI", 9))
+        self.status_filter.setFixedSize(110, 30)
+        self.status_filter.currentTextChanged.connect(self._apply_filters)
+        results_header.addWidget(self.status_filter)
+
+        self.risk_filter = QComboBox()
+        self.risk_filter.addItems(["All Risk", "High", "Medium", "Low"])
+        self.risk_filter.setFont(QFont("Segoe UI", 9))
+        self.risk_filter.setFixedSize(100, 30)
+        self.risk_filter.currentTextChanged.connect(self._apply_filters)
+        results_header.addWidget(self.risk_filter)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search...")
+        self.search_input.setFont(QFont("Segoe UI", 9))
+        self.search_input.setFixedSize(150, 30)
+        self.search_input.textChanged.connect(self._apply_filters)
+        results_header.addWidget(self.search_input)
+
+        results_header.addSpacing(15)
+
         self.results_count = QLabel("0 items")
         self.results_count.setFont(QFont("Segoe UI", 10))
         self.results_count.setStyleSheet("color: #64748b;")
@@ -781,6 +929,8 @@ class ZapGuardWindow(QMainWindow):
         self.results_table.setShowGrid(False)
         self.results_table.verticalHeader().setVisible(False)
         self.results_table.setAlternatingRowColors(False)
+        self.results_table.setSortingEnabled(True)
+        self.results_table.horizontalHeader().setSortIndicatorShown(True)
         main_layout.addWidget(self.results_table, 1)
 
         # ===== LOG =====
@@ -800,16 +950,75 @@ class ZapGuardWindow(QMainWindow):
         # Initial validation
         self._validate_url(self.url_input.text())
 
+    def _get_full_url(self) -> str:
+        """Get the complete URL with scheme."""
+        return self.scheme_combo.currentText() + self.url_input.text().strip()
+
+    def _on_scheme_changed(self):
+        """Re-validate when scheme changes."""
+        self._validate_url(self.url_input.text())
+
     def _validate_url(self, text: str):
         if not text.strip():
             self.url_status.setText("")
             return
-        if is_valid_url(text.strip()):
+        full_url = self._get_full_url()
+        if is_valid_url(full_url):
             self.url_status.setText("Valid")
             self.url_status.setStyleSheet("color: #10b981;")
         else:
             self.url_status.setText("Invalid")
             self.url_status.setStyleSheet("color: #ef4444;")
+
+    def _apply_filters(self):
+        """Apply filters to the results table."""
+        status_filter = self.status_filter.currentText()
+        risk_filter = self.risk_filter.currentText()
+        search_text = self.search_input.text().lower().strip()
+
+        visible_count = 0
+        for row in range(self.results_table.rowCount()):
+            show_row = True
+
+            # Status filter - map dropdown values to actual table values
+            if status_filter != "All Status":
+                status_item = self.results_table.item(row, 0)
+                if status_item:
+                    status_map = {
+                        "Pass": "PASS",
+                        "Fail": "FAIL",
+                        "Not Testable": "NOT_TESTABLE",
+                        "Error": "ERROR"
+                    }
+                    expected_status = status_map.get(status_filter, "")
+                    if status_item.text() != expected_status:
+                        show_row = False
+
+            # Risk filter
+            if show_row and risk_filter != "All Risk":
+                risk_item = self.results_table.item(row, 1)
+                if risk_item and risk_item.text().upper() != risk_filter.upper():
+                    show_row = False
+
+            # Search filter
+            if show_row and search_text:
+                row_text = ""
+                for col in range(self.results_table.columnCount()):
+                    item = self.results_table.item(row, col)
+                    if item:
+                        row_text += item.text().lower() + " "
+                if search_text not in row_text:
+                    show_row = False
+
+            self.results_table.setRowHidden(row, not show_row)
+            if show_row:
+                visible_count += 1
+
+        total = self.results_table.rowCount()
+        if visible_count == total:
+            self.results_count.setText(f"{total} items")
+        else:
+            self.results_count.setText(f"{visible_count} of {total} items")
 
     def _browse_report(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -838,14 +1047,15 @@ class ZapGuardWindow(QMainWindow):
         if self.is_running:
             return
 
-        url = self.url_input.text().strip()
+        host = self.url_input.text().strip()
+        url = self._get_full_url()
         report = self.report_input.text().strip()
 
-        if not url:
+        if not host:
             QMessageBox.warning(self, "Error", "Please enter a target URL.")
             return
         if not is_valid_url(url):
-            QMessageBox.warning(self, "Error", "Invalid URL format.")
+            QMessageBox.warning(self, "Error", "Invalid URL format. Please enter a valid IP (e.g., 10.0.0.1) or domain (e.g., example.com).")
             return
         if not report or not Path(report).exists():
             QMessageBox.warning(self, "Error", "Please select a valid ZAP report file.")
@@ -880,6 +1090,7 @@ class ZapGuardWindow(QMainWindow):
         self.stop_btn.setEnabled(True)
         self.clear_btn.setEnabled(False)
         self.export_html_btn.setEnabled(False)
+        self.export_pdf_btn.setEnabled(False)
         self.export_csv_btn.setEnabled(False)
         self._set_status("Running", "#3b82f6")
         self.start_time = datetime.now()
@@ -907,6 +1118,10 @@ class ZapGuardWindow(QMainWindow):
         self.progress_text.setText("0%")
         self.progress_detail.setText("")
         self.results_count.setText("0 items")
+        # Reset filters
+        self.status_filter.setCurrentIndex(0)
+        self.risk_filter.setCurrentIndex(0)
+        self.search_input.clear()
         self._update_stats()
         self._set_status("Ready", "#22c55e")
 
@@ -972,6 +1187,7 @@ class ZapGuardWindow(QMainWindow):
 
         if results:
             self.export_html_btn.setEnabled(True)
+            self.export_pdf_btn.setEnabled(True)
             self.export_csv_btn.setEnabled(True)
 
         duration = (datetime.now() - self.start_time).total_seconds() if self.start_time else 0
@@ -990,8 +1206,15 @@ class ZapGuardWindow(QMainWindow):
     def _export_html(self):
         from .reports import generate_html_report
         out = Path(self.output_input.text()) / "zap_verification_report.html"
-        generate_html_report(self.results, self.alerts, self.url_input.text(), self.report_input.text(), str(out))
+        generate_html_report(self.results, self.alerts, self._get_full_url(), self.report_input.text(), str(out))
         self._log(f"HTML exported: {out.name}")
+        QMessageBox.information(self, "Export", f"Report saved to:\n{out}")
+
+    def _export_pdf(self):
+        from .reports import generate_pdf_report
+        out = Path(self.output_input.text()) / "zap_verification_report.pdf"
+        generate_pdf_report(self.results, self.alerts, self._get_full_url(), self.report_input.text(), str(out))
+        self._log(f"PDF exported: {out.name}")
         QMessageBox.information(self, "Export", f"Report saved to:\n{out}")
 
     def _export_csv(self):

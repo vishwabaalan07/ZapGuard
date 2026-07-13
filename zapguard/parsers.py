@@ -257,10 +257,13 @@ def parse_zap_report(report_path: str) -> List[Alert]:
     extension = path.suffix.lower()
 
     if extension in ['.html', '.htm']:
-        return parse_zap_html_report(content)
+        alerts = parse_zap_html_report(content)
     elif extension == '.xml':
-        return parse_zap_xml_report(content)
+        alerts = parse_zap_xml_report(content)
     elif extension == '.json':
-        return parse_zap_json_report(content)
+        alerts = parse_zap_json_report(content)
     else:
         raise ValueError(f"Unsupported file format: {extension}")
+
+    # Exclude Informational risk level alerts
+    return [alert for alert in alerts if alert.risk_level != RiskLevel.INFORMATIONAL]
