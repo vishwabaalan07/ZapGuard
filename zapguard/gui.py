@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QFileDialog, QProgressBar,
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
     QTextEdit, QMessageBox, QGraphicsDropShadowEffect, QSizePolicy,
-    QComboBox
+    QComboBox, QSplitter, QScrollArea, QGroupBox
 )
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QFont, QColor, QIcon, QPixmap, QPainter, QBrush, QPen, QLinearGradient, QPainterPath
@@ -283,19 +283,19 @@ class StatCard(QFrame):
         self.title = title
         self._dark_mode = True
 
-        self.setMinimumSize(120, 90)
-        self.setMaximumSize(160, 110)
+        self.setMinimumSize(90, 70)
+        self.setMaximumSize(130, 90)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(4)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(2)
 
         self.value_label = QLabel(value)
-        self.value_label.setFont(QFont("Segoe UI", 28, QFont.Bold))
+        self.value_label.setFont(QFont("Segoe UI", 22, QFont.Bold))
         layout.addWidget(self.value_label)
 
         self.title_label = QLabel(title)
-        self.title_label.setFont(QFont("Segoe UI", 9))
+        self.title_label.setFont(QFont("Segoe UI", 8))
         layout.addWidget(self.title_label)
 
         layout.addStretch()
@@ -329,7 +329,7 @@ class ZapGuardWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("ZapGuard")
-        self.setMinimumSize(1200, 800)
+        self.setMinimumSize(1000, 600)
         self.alerts = []
         self.results = []
         self.worker = None
@@ -482,6 +482,33 @@ class ZapGuardWindow(QMainWindow):
             }}
         """)
 
+        # Update details panel
+        self.details_panel.setStyleSheet(f"""
+            QFrame {{
+                background: {theme['bg_secondary']};
+                border-radius: 8px;
+                border: 1px solid {theme['border']};
+            }}
+            QLabel {{
+                background: transparent;
+                border: none;
+            }}
+            QTextEdit {{
+                background: {theme['bg_input']};
+                border: 1px solid {theme['border']};
+                border-radius: 4px;
+                color: {theme['text_primary']};
+                padding: 6px;
+            }}
+            QScrollArea {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollArea > QWidget > QWidget {{
+                background: transparent;
+            }}
+        """)
+
         # Update log
         self.log_text.setStyleSheet(f"""
             QTextEdit {{
@@ -554,9 +581,18 @@ class ZapGuardWindow(QMainWindow):
     def _setup_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
-        main_layout.setContentsMargins(32, 24, 32, 24)
-        main_layout.setSpacing(24)
+        root_layout = QHBoxLayout(central)
+        root_layout.setContentsMargins(20, 15, 20, 15)
+        root_layout.setSpacing(15)
+
+        # Main splitter - left (controls/results) and right (details panel)
+        main_splitter = QSplitter(Qt.Horizontal)
+
+        # ===== LEFT SIDE - Controls, Stats, Results, Log =====
+        left_widget = QWidget()
+        main_layout = QVBoxLayout(left_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(15)
 
         # ===== HEADER =====
         header = QHBoxLayout()
@@ -565,12 +601,12 @@ class ZapGuardWindow(QMainWindow):
         title_area.setSpacing(0)
 
         logo = QLabel("ZapGuard")
-        logo.setFont(QFont("Segoe UI", 26, QFont.Bold))
+        logo.setFont(QFont("Segoe UI", 20, QFont.Bold))
         logo.setStyleSheet("color: #3b82f6;")
         title_area.addWidget(logo)
 
         tagline = QLabel("Vulnerability Fix Verification")
-        tagline.setFont(QFont("Segoe UI", 10))
+        tagline.setFont(QFont("Segoe UI", 9))
         tagline.setStyleSheet("color: #64748b;")
         title_area.addWidget(tagline)
 
@@ -614,32 +650,33 @@ class ZapGuardWindow(QMainWindow):
 
         # ===== CONFIGURATION =====
         config_layout = QVBoxLayout()
-        config_layout.setSpacing(12)
+        config_layout.setSpacing(8)
 
         # Target URL
         url_row = QHBoxLayout()
         self.url_label = QLabel("Target URL")
-        self.url_label.setFixedWidth(90)
-        self.url_label.setFont(QFont("Segoe UI", 10))
+        self.url_label.setFixedWidth(70)
+        self.url_label.setFont(QFont("Segoe UI", 9))
         url_row.addWidget(self.url_label)
 
         # Scheme dropdown (non-editable)
         self.scheme_combo = QComboBox()
         self.scheme_combo.addItems(["https://", "http://"])
-        self.scheme_combo.setFont(QFont("Segoe UI", 10))
-        self.scheme_combo.setFixedSize(90, 38)
+        self.scheme_combo.setFont(QFont("Segoe UI", 9))
+        self.scheme_combo.setFixedSize(85, 32)
         self.scheme_combo.currentTextChanged.connect(self._on_scheme_changed)
         url_row.addWidget(self.scheme_combo)
 
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("example.com or 10.0.0.1")
-        self.url_input.setFont(QFont("Segoe UI", 10))
-        self.url_input.setFixedHeight(38)
+        self.url_input.setFont(QFont("Segoe UI", 9))
+        self.url_input.setFixedHeight(32)
+        self.url_input.setMinimumWidth(200)
         self.url_input.textChanged.connect(self._validate_url)
-        url_row.addWidget(self.url_input)
+        url_row.addWidget(self.url_input, 1)
 
         self.url_status = QLabel("")
-        self.url_status.setFixedWidth(60)
+        self.url_status.setFixedWidth(50)
         self.url_status.setFont(QFont("Segoe UI", 9))
         url_row.addWidget(self.url_status)
 
@@ -648,20 +685,21 @@ class ZapGuardWindow(QMainWindow):
         # ZAP Report
         report_row = QHBoxLayout()
         self.report_label = QLabel("ZAP Report")
-        self.report_label.setFixedWidth(90)
-        self.report_label.setFont(QFont("Segoe UI", 10))
+        self.report_label.setFixedWidth(70)
+        self.report_label.setFont(QFont("Segoe UI", 9))
         report_row.addWidget(self.report_label)
 
         self.report_input = QLineEdit()
         self.report_input.setPlaceholderText("Select ZAP report (.html, .xml, .json)")
-        self.report_input.setFont(QFont("Segoe UI", 10))
-        self.report_input.setFixedHeight(38)
-        report_row.addWidget(self.report_input)
+        self.report_input.setFont(QFont("Segoe UI", 9))
+        self.report_input.setFixedHeight(32)
+        self.report_input.setMinimumWidth(200)
+        report_row.addWidget(self.report_input, 1)
 
         browse_btn = QPushButton("Browse")
-        browse_btn.setFont(QFont("Segoe UI", 9, QFont.Medium))
+        browse_btn.setFont(QFont("Segoe UI", 9))
         browse_btn.setCursor(Qt.PointingHandCursor)
-        browse_btn.setFixedSize(80, 38)
+        browse_btn.setFixedSize(70, 32)
         browse_btn.clicked.connect(self._browse_report)
         browse_btn.setStyleSheet("""
             QPushButton {
@@ -679,20 +717,21 @@ class ZapGuardWindow(QMainWindow):
         # Output Directory
         output_row = QHBoxLayout()
         self.output_label = QLabel("Output Dir")
-        self.output_label.setFixedWidth(90)
-        self.output_label.setFont(QFont("Segoe UI", 10))
+        self.output_label.setFixedWidth(70)
+        self.output_label.setFont(QFont("Segoe UI", 9))
         output_row.addWidget(self.output_label)
 
         self.output_input = QLineEdit()
         self.output_input.setPlaceholderText("Output directory for reports")
-        self.output_input.setFont(QFont("Segoe UI", 10))
-        self.output_input.setFixedHeight(38)
-        output_row.addWidget(self.output_input)
+        self.output_input.setFont(QFont("Segoe UI", 9))
+        self.output_input.setFixedHeight(32)
+        self.output_input.setMinimumWidth(200)
+        output_row.addWidget(self.output_input, 1)
 
         output_btn = QPushButton("Browse")
-        output_btn.setFont(QFont("Segoe UI", 9, QFont.Medium))
+        output_btn.setFont(QFont("Segoe UI", 9))
         output_btn.setCursor(Qt.PointingHandCursor)
-        output_btn.setFixedSize(80, 38)
+        output_btn.setFixedSize(70, 32)
         output_btn.clicked.connect(self._browse_output)
         output_btn.setStyleSheet("""
             QPushButton {
@@ -710,21 +749,21 @@ class ZapGuardWindow(QMainWindow):
 
         # ===== ACTION BUTTONS =====
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(10)
+        btn_row.setSpacing(8)
 
-        self.start_btn = QPushButton("Start Validation")
-        self.start_btn.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.start_btn = QPushButton("Start")
+        self.start_btn.setFont(QFont("Segoe UI", 9, QFont.Bold))
         self.start_btn.setCursor(Qt.PointingHandCursor)
-        self.start_btn.setFixedHeight(40)
-        self.start_btn.setMinimumWidth(140)
+        self.start_btn.setFixedHeight(32)
+        self.start_btn.setMinimumWidth(80)
         self.start_btn.clicked.connect(self._start_validation)
         self.start_btn.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3b82f6, stop:1 #2563eb);
                 color: white;
                 border: none;
-                border-radius: 8px;
-                padding: 0 20px;
+                border-radius: 6px;
+                padding: 0 15px;
             }
             QPushButton:hover {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #60a5fa, stop:1 #3b82f6);
@@ -734,9 +773,9 @@ class ZapGuardWindow(QMainWindow):
         btn_row.addWidget(self.start_btn)
 
         self.stop_btn = QPushButton("Stop")
-        self.stop_btn.setFont(QFont("Segoe UI", 10, QFont.Medium))
+        self.stop_btn.setFont(QFont("Segoe UI", 9))
         self.stop_btn.setCursor(Qt.PointingHandCursor)
-        self.stop_btn.setFixedSize(80, 40)
+        self.stop_btn.setFixedSize(60, 32)
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self._stop_validation)
         self.stop_btn.setStyleSheet("""
@@ -744,7 +783,7 @@ class ZapGuardWindow(QMainWindow):
                 background: #dc2626;
                 color: white;
                 border: none;
-                border-radius: 8px;
+                border-radius: 6px;
             }
             QPushButton:hover { background: #ef4444; }
             QPushButton:disabled { background: #374151; color: #6b7280; }
@@ -752,28 +791,27 @@ class ZapGuardWindow(QMainWindow):
         btn_row.addWidget(self.stop_btn)
 
         self.clear_btn = QPushButton("Clear")
-        self.clear_btn.setFont(QFont("Segoe UI", 10, QFont.Medium))
+        self.clear_btn.setFont(QFont("Segoe UI", 9))
         self.clear_btn.setCursor(Qt.PointingHandCursor)
-        self.clear_btn.setFixedSize(80, 40)
+        self.clear_btn.setFixedSize(60, 32)
         self.clear_btn.clicked.connect(self._clear_results)
         self.clear_btn.setStyleSheet("""
             QPushButton {
                 background: #374151;
                 color: #e5e7eb;
                 border: none;
-                border-radius: 8px;
+                border-radius: 6px;
             }
             QPushButton:hover { background: #4b5563; }
         """)
         btn_row.addWidget(self.clear_btn)
 
-        btn_row.addStretch()
+        btn_row.addSpacing(15)
 
-        self.export_html_btn = QPushButton("Export HTML")
-        self.export_html_btn.setFont(QFont("Segoe UI", 10, QFont.Medium))
+        self.export_html_btn = QPushButton("HTML")
+        self.export_html_btn.setFont(QFont("Segoe UI", 9))
         self.export_html_btn.setCursor(Qt.PointingHandCursor)
-        self.export_html_btn.setFixedHeight(40)
-        self.export_html_btn.setMinimumWidth(110)
+        self.export_html_btn.setFixedSize(60, 32)
         self.export_html_btn.setEnabled(False)
         self.export_html_btn.clicked.connect(self._export_html)
         self.export_html_btn.setStyleSheet("""
@@ -781,19 +819,17 @@ class ZapGuardWindow(QMainWindow):
                 background: #059669;
                 color: white;
                 border: none;
-                border-radius: 8px;
-                padding: 0 16px;
+                border-radius: 6px;
             }
             QPushButton:hover { background: #10b981; }
             QPushButton:disabled { background: #374151; color: #6b7280; }
         """)
         btn_row.addWidget(self.export_html_btn)
 
-        self.export_pdf_btn = QPushButton("Export PDF")
-        self.export_pdf_btn.setFont(QFont("Segoe UI", 10, QFont.Medium))
+        self.export_pdf_btn = QPushButton("PDF")
+        self.export_pdf_btn.setFont(QFont("Segoe UI", 9))
         self.export_pdf_btn.setCursor(Qt.PointingHandCursor)
-        self.export_pdf_btn.setFixedHeight(40)
-        self.export_pdf_btn.setMinimumWidth(100)
+        self.export_pdf_btn.setFixedSize(55, 32)
         self.export_pdf_btn.setEnabled(False)
         self.export_pdf_btn.clicked.connect(self._export_pdf)
         self.export_pdf_btn.setStyleSheet("""
@@ -801,19 +837,17 @@ class ZapGuardWindow(QMainWindow):
                 background: #dc2626;
                 color: white;
                 border: none;
-                border-radius: 8px;
-                padding: 0 16px;
+                border-radius: 6px;
             }
             QPushButton:hover { background: #ef4444; }
             QPushButton:disabled { background: #374151; color: #6b7280; }
         """)
         btn_row.addWidget(self.export_pdf_btn)
 
-        self.export_csv_btn = QPushButton("Export CSV")
-        self.export_csv_btn.setFont(QFont("Segoe UI", 10, QFont.Medium))
+        self.export_csv_btn = QPushButton("CSV")
+        self.export_csv_btn.setFont(QFont("Segoe UI", 9))
         self.export_csv_btn.setCursor(Qt.PointingHandCursor)
-        self.export_csv_btn.setFixedHeight(40)
-        self.export_csv_btn.setMinimumWidth(100)
+        self.export_csv_btn.setFixedSize(55, 32)
         self.export_csv_btn.setEnabled(False)
         self.export_csv_btn.clicked.connect(self._export_csv)
         self.export_csv_btn.setStyleSheet("""
@@ -821,33 +855,33 @@ class ZapGuardWindow(QMainWindow):
                 background: #374151;
                 color: #e5e7eb;
                 border: none;
-                border-radius: 8px;
-                padding: 0 16px;
+                border-radius: 6px;
             }
             QPushButton:hover { background: #4b5563; }
             QPushButton:disabled { background: #1f2937; color: #4b5563; }
         """)
         btn_row.addWidget(self.export_csv_btn)
 
+        btn_row.addStretch()
         main_layout.addLayout(btn_row)
 
         # ===== PROGRESS =====
         progress_row = QHBoxLayout()
-        progress_row.setSpacing(12)
+        progress_row.setSpacing(8)
 
         self.progress_bar = QProgressBar()
-        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setFixedHeight(5)
         self.progress_bar.setTextVisible(False)
         progress_row.addWidget(self.progress_bar, 1)
 
         self.progress_text = QLabel("0%")
-        self.progress_text.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self.progress_text.setFont(QFont("Segoe UI", 9, QFont.Bold))
         self.progress_text.setStyleSheet("color: #3b82f6;")
-        self.progress_text.setFixedWidth(45)
+        self.progress_text.setFixedWidth(40)
         progress_row.addWidget(self.progress_text)
 
         self.progress_detail = QLabel("")
-        self.progress_detail.setFont(QFont("Segoe UI", 9))
+        self.progress_detail.setFont(QFont("Segoe UI", 8))
         self.progress_detail.setStyleSheet("color: #64748b;")
         progress_row.addWidget(self.progress_detail)
 
@@ -855,14 +889,14 @@ class ZapGuardWindow(QMainWindow):
 
         # ===== STATS =====
         stats_row = QHBoxLayout()
-        stats_row.setSpacing(12)
+        stats_row.setSpacing(8)
 
         self.card_total = StatCard("Total", "0", "#3b82f6")
         self.card_passed = StatCard("Passed", "0", "#10b981")
         self.card_failed = StatCard("Failed", "0", "#ef4444")
         self.card_skipped = StatCard("Skipped", "0", "#f59e0b")
         self.card_errors = StatCard("Errors", "0", "#8b5cf6")
-        self.card_rate = StatCard("Pass Rate", "0%", "#06b6d4")
+        self.card_rate = StatCard("Rate", "0%", "#06b6d4")
 
         self.stat_cards = [self.card_total, self.card_passed, self.card_failed,
                           self.card_skipped, self.card_errors, self.card_rate]
@@ -877,47 +911,48 @@ class ZapGuardWindow(QMainWindow):
         # ===== RESULTS =====
         results_header = QHBoxLayout()
         self.results_title = QLabel("Results")
-        self.results_title.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        self.results_title.setFont(QFont("Segoe UI", 11, QFont.Bold))
         results_header.addWidget(self.results_title)
 
         results_header.addStretch()
 
         # Filter controls
         filter_label = QLabel("Filter:")
-        filter_label.setFont(QFont("Segoe UI", 9))
+        filter_label.setFont(QFont("Segoe UI", 8))
         filter_label.setStyleSheet("color: #64748b;")
         results_header.addWidget(filter_label)
 
         self.status_filter = QComboBox()
         self.status_filter.addItems(["All Status", "Pass", "Fail", "Not Testable", "Error"])
-        self.status_filter.setFont(QFont("Segoe UI", 9))
-        self.status_filter.setFixedSize(110, 30)
+        self.status_filter.setFont(QFont("Segoe UI", 8))
+        self.status_filter.setFixedSize(95, 26)
         self.status_filter.currentTextChanged.connect(self._apply_filters)
         results_header.addWidget(self.status_filter)
 
         self.risk_filter = QComboBox()
         self.risk_filter.addItems(["All Risk", "High", "Medium", "Low"])
-        self.risk_filter.setFont(QFont("Segoe UI", 9))
-        self.risk_filter.setFixedSize(100, 30)
+        self.risk_filter.setFont(QFont("Segoe UI", 8))
+        self.risk_filter.setFixedSize(80, 26)
         self.risk_filter.currentTextChanged.connect(self._apply_filters)
         results_header.addWidget(self.risk_filter)
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search...")
-        self.search_input.setFont(QFont("Segoe UI", 9))
-        self.search_input.setFixedSize(150, 30)
+        self.search_input.setFont(QFont("Segoe UI", 8))
+        self.search_input.setFixedSize(120, 26)
         self.search_input.textChanged.connect(self._apply_filters)
         results_header.addWidget(self.search_input)
 
-        results_header.addSpacing(15)
+        results_header.addSpacing(10)
 
         self.results_count = QLabel("0 items")
-        self.results_count.setFont(QFont("Segoe UI", 10))
+        self.results_count.setFont(QFont("Segoe UI", 9))
         self.results_count.setStyleSheet("color: #64748b;")
         results_header.addWidget(self.results_count)
 
         main_layout.addLayout(results_header)
 
+        # Results table (no splitter here - details panel is on main splitter)
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(6)
         self.results_table.setHorizontalHeaderLabels([
@@ -931,6 +966,7 @@ class ZapGuardWindow(QMainWindow):
         self.results_table.setAlternatingRowColors(False)
         self.results_table.setSortingEnabled(True)
         self.results_table.horizontalHeader().setSortIndicatorShown(True)
+        self.results_table.itemSelectionChanged.connect(self._on_row_selected)
         main_layout.addWidget(self.results_table, 1)
 
         # ===== LOG =====
@@ -944,11 +980,183 @@ class ZapGuardWindow(QMainWindow):
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setFont(QFont("Consolas", 9))
-        self.log_text.setFixedHeight(80)
+        self.log_text.setFixedHeight(70)
         main_layout.addWidget(self.log_text)
+
+        # Add left widget to main splitter
+        main_splitter.addWidget(left_widget)
+
+        # ===== RIGHT SIDE - Details Panel (full height) =====
+        self.details_panel = QFrame()
+        self.details_panel.setMinimumWidth(320)
+        details_layout = QVBoxLayout(self.details_panel)
+        details_layout.setContentsMargins(20, 15, 20, 15)
+        details_layout.setSpacing(12)
+
+        # Details header
+        details_header_widget = QLabel("Vulnerability Details")
+        details_header_widget.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        details_layout.addWidget(details_header_widget)
+
+        # Scroll area for details content
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+
+        details_content = QWidget()
+        self.details_content_layout = QVBoxLayout(details_content)
+        self.details_content_layout.setContentsMargins(0, 0, 0, 0)
+        self.details_content_layout.setSpacing(10)
+
+        # Status and Risk in a row
+        status_risk_row = QHBoxLayout()
+        self.detail_status = self._create_detail_field("Status", "-")
+        status_risk_row.addWidget(self.detail_status)
+        self.detail_risk = self._create_detail_field("Risk Level", "-")
+        status_risk_row.addWidget(self.detail_risk)
+        status_risk_row.addStretch()
+        self.details_content_layout.addLayout(status_risk_row)
+
+        # Method and Plugin ID in a row
+        method_plugin_row = QHBoxLayout()
+        self.detail_method = self._create_detail_field("Method", "-")
+        method_plugin_row.addWidget(self.detail_method)
+        self.detail_plugin_id = self._create_detail_field("Plugin ID", "-")
+        method_plugin_row.addWidget(self.detail_plugin_id)
+        method_plugin_row.addStretch()
+        self.details_content_layout.addLayout(method_plugin_row)
+
+        # Vulnerability name
+        self.detail_vuln_name = self._create_detail_field("Vulnerability", "-")
+        self.details_content_layout.addWidget(self.detail_vuln_name)
+
+        # Endpoint (full URL)
+        self.detail_endpoint = self._create_detail_field("Endpoint", "-", multiline=True, height=100)
+        self.details_content_layout.addWidget(self.detail_endpoint)
+
+        # Details/Evidence (larger area - will expand)
+        self.detail_evidence = self._create_detail_field("Details / Evidence", "-", multiline=True, height=200)
+        self.details_content_layout.addWidget(self.detail_evidence, 1)
+
+        scroll_area.setWidget(details_content)
+        details_layout.addWidget(scroll_area, 1)
+
+        main_splitter.addWidget(self.details_panel)
+
+        # Set splitter sizes (65% left, 35% right)
+        main_splitter.setSizes([650, 350])
+        main_splitter.setStretchFactor(0, 2)
+        main_splitter.setStretchFactor(1, 1)
+
+        root_layout.addWidget(main_splitter)
 
         # Initial validation
         self._validate_url(self.url_input.text())
+
+    def _create_detail_field(self, label: str, value: str, multiline: bool = False, height: int = None) -> QFrame:
+        """Create a labeled field for the details panel."""
+        frame = QFrame()
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        lbl = QLabel(label)
+        lbl.setFont(QFont("Segoe UI", 9, QFont.Medium))
+        lbl.setStyleSheet("color: #64748b;")
+        layout.addWidget(lbl)
+
+        if multiline:
+            val = QTextEdit()
+            val.setReadOnly(True)
+            val.setFont(QFont("Consolas", 10))
+            val.setPlainText(value)
+            if height:
+                val.setMinimumHeight(height)
+            else:
+                val.setMinimumHeight(60)
+        else:
+            val = QLabel(value)
+            val.setFont(QFont("Segoe UI", 11))
+            val.setWordWrap(True)
+
+        layout.addWidget(val)
+        frame.value_widget = val
+        frame.is_multiline = multiline
+        return frame
+
+    def _on_row_selected(self):
+        """Update details panel when a row is selected."""
+        selected_rows = self.results_table.selectionModel().selectedRows()
+        if not selected_rows:
+            self._clear_details_panel()
+            return
+
+        row = selected_rows[0].row()
+        if row < 0 or row >= len(self.results):
+            self._clear_details_panel()
+            return
+
+        # Find the matching result
+        status_item = self.results_table.item(row, 0)
+        endpoint_item = self.results_table.item(row, 4)
+
+        if not status_item or not endpoint_item:
+            return
+
+        # Find result by matching endpoint
+        endpoint = endpoint_item.text()
+        result = None
+        for r in self.results:
+            if r.endpoint == endpoint:
+                result = r
+                break
+
+        if not result:
+            return
+
+        # Update details panel
+        self._update_detail_field(self.detail_status, result.status.value)
+        self._update_detail_field(self.detail_risk, result.risk_level.name)
+        self._update_detail_field(self.detail_vuln_name, result.alert_name)
+        self._update_detail_field(self.detail_plugin_id, result.plugin_id)
+        self._update_detail_field(self.detail_method, result.method)
+        self._update_detail_field(self.detail_endpoint, result.endpoint)
+        self._update_detail_field(self.detail_evidence, result.details or "No details available")
+
+        # Color the status
+        status_colors = {
+            "PASS": "#10b981", "FAIL": "#ef4444",
+            "NOT_TESTABLE": "#f59e0b", "ERROR": "#8b5cf6"
+        }
+        color = status_colors.get(result.status.value, "#64748b")
+        self.detail_status.value_widget.setStyleSheet(f"color: {color}; font-weight: bold;")
+
+        # Color the risk
+        risk_colors = {
+            "HIGH": "#ef4444", "MEDIUM": "#f59e0b",
+            "LOW": "#eab308", "INFORMATIONAL": "#3b82f6"
+        }
+        risk_color = risk_colors.get(result.risk_level.name, "#64748b")
+        self.detail_risk.value_widget.setStyleSheet(f"color: {risk_color}; font-weight: bold;")
+
+    def _update_detail_field(self, field: QFrame, value: str):
+        """Update a detail field's value."""
+        if field.is_multiline:
+            field.value_widget.setPlainText(value)
+        else:
+            field.value_widget.setText(value)
+
+    def _clear_details_panel(self):
+        """Clear all fields in the details panel."""
+        self._update_detail_field(self.detail_status, "-")
+        self._update_detail_field(self.detail_risk, "-")
+        self._update_detail_field(self.detail_vuln_name, "-")
+        self._update_detail_field(self.detail_plugin_id, "-")
+        self._update_detail_field(self.detail_method, "-")
+        self._update_detail_field(self.detail_endpoint, "-")
+        self._update_detail_field(self.detail_evidence, "-")
+        self.detail_status.value_widget.setStyleSheet("")
+        self.detail_risk.value_widget.setStyleSheet("")
 
     def _get_full_url(self) -> str:
         """Get the complete URL with scheme."""
@@ -1122,6 +1330,8 @@ class ZapGuardWindow(QMainWindow):
         self.status_filter.setCurrentIndex(0)
         self.risk_filter.setCurrentIndex(0)
         self.search_input.clear()
+        # Clear details panel
+        self._clear_details_panel()
         self._update_stats()
         self._set_status("Ready", "#22c55e")
 
