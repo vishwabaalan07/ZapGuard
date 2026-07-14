@@ -1,19 +1,23 @@
 # ZapGuard
 
-A professional GUI tool for verifying ZAP (Zed Attack Proxy) vulnerability fixes. ZapGuard parses ZAP security scan reports and automatically tests whether identified vulnerabilities have been remediated.
+A professional tool for verifying ZAP (Zed Attack Proxy) vulnerability fixes. ZapGuard parses ZAP security scan reports and automatically tests whether identified vulnerabilities have been remediated. Available as both a desktop GUI and a web application.
 
 ![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![PySide6](https://img.shields.io/badge/PySide6-6.5+-green.svg)
+![Flask](https://img.shields.io/badge/Flask-2.3+-orange.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ## Features
 
-- **Modern GUI** - Professional dark/light theme interface built with PySide6
+- **Desktop & Web Interface** - Professional dark/light theme interface available as desktop GUI (PySide6) or web application (Flask)
 - **Multi-format Support** - Parses HTML, XML, and JSON ZAP reports
 - **Parallel Testing** - Concurrent vulnerability verification with configurable workers
 - **Real-time Progress** - Live updates during validation with stop/cancel support
-- **Export Reports** - Generate HTML and CSV verification reports
-- **URL Validation** - Built-in URL format validation with visual feedback
+- **Export Reports** - Generate HTML, PDF, and CSV verification reports
+- **URL Validation** - Built-in URL/IP format validation with visual feedback
+- **Filtering & Sorting** - Filter results by status, risk level, and search; sort by any column
+- **Vulnerability Details Panel** - View full details of selected vulnerabilities
+- **Responsive Design** - Adapts to different screen sizes
 
 ## Supported Vulnerability Tests
 
@@ -51,21 +55,52 @@ A professional GUI tool for verifying ZAP (Zed Attack Proxy) vulnerability fixes
 
 3. Install dependencies:
    ```bash
+   # Full installation (Desktop GUI + Web)
    pip install -r requirements.txt
+
+   # Web-only installation (lighter, no PySide6)
+   pip install -r requirements-web.txt
    ```
 
 ## Usage
 
-### GUI Mode (Recommended)
+### Desktop GUI Mode
 
 ```bash
 python run_gui.py
 ```
 
-1. Enter the target URL (the application you want to verify)
+1. Select scheme (https/http) and enter the target URL or IP
 2. Browse and select your ZAP report file (.html, .xml, or .json)
 3. Choose an output directory for reports
 4. Click **Start Validation**
+5. Use filters to narrow down results
+6. Click on any row to see full vulnerability details
+7. Export results as HTML, PDF, or CSV
+
+### Web Mode
+
+```bash
+python run_web.py
+```
+
+Access at: `http://localhost:5005`
+
+**Command line options:**
+```bash
+python run_web.py --host 0.0.0.0 --port 5005  # Default settings
+python run_web.py --port 8080                  # Custom port
+python run_web.py --debug                      # Enable debug mode
+```
+
+**Deploying on a Server:**
+```bash
+# On Linux server
+pip install -r requirements-web.txt
+python run_web.py --host 0.0.0.0 --port 5005
+
+# Access from: http://<server-ip>:5005
+```
 
 ### CLI Mode
 
@@ -103,19 +138,29 @@ zapguard/
 │   └── pull_request_template.md
 ├── zapguard/              # Main package
 │   ├── __init__.py
-│   ├── gui.py             # GUI application
+│   ├── gui.py             # Desktop GUI application (PySide6)
+│   ├── web_app.py         # Web application (Flask)
 │   ├── cli.py             # CLI application
 │   ├── config.py          # Configuration settings
 │   ├── models.py          # Data models (Alert, TestResult, etc.)
 │   ├── parsers.py         # ZAP report parsers (HTML, XML, JSON)
-│   ├── http_client.py     # HTTP client with retry logic
+│   ├── http_client.py     # HTTP client with retry logic (requests)
 │   ├── vulnerability_tests.py  # Vulnerability test classes
 │   ├── verifier.py        # Test orchestration
-│   └── reports.py         # HTML/CSV report generators
-├── run_gui.py             # GUI entry point
+│   ├── reports.py         # HTML/PDF/CSV report generators
+│   ├── templates/         # Web HTML templates
+│   │   └── index.html
+│   └── static/            # Web static assets
+│       ├── css/
+│       │   └── style.css
+│       └── js/
+│           └── app.js
+├── run_gui.py             # Desktop GUI entry point
+├── run_web.py             # Web server entry point
 ├── run_cli.py             # CLI entry point
 ├── config.example.py      # Example configuration
-├── requirements.txt       # Python dependencies
+├── requirements.txt       # Full dependencies (GUI + Web)
+├── requirements-web.txt   # Web-only dependencies
 ├── pyproject.toml         # Package configuration
 ├── LICENSE                # MIT License
 └── README.md              # This file
@@ -163,4 +208,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - [OWASP ZAP](https://www.zaproxy.org/) - The security scanner that generates the reports
-- [PySide6](https://doc.qt.io/qtforpython/) - Qt for Python framework
+- [PySide6](https://doc.qt.io/qtforpython/) - Qt for Python framework (Desktop GUI)
+- [Flask](https://flask.palletsprojects.com/) - Python web framework (Web version)
+- [ReportLab](https://www.reportlab.com/) - PDF generation library

@@ -1,0 +1,7 @@
+# Web-only dependencies (lighter footprint for server deployment)
+# Does not include PySide6 which is only needed for desktop GUI
+
+requests>=2.28.0
+reportlab>=4.0.0
+Flask>=2.3.0
+flask-cors>=4.0.0
