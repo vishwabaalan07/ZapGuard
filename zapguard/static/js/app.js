@@ -191,8 +191,8 @@ class ZapGuardApp {
             return;
         }
 
-        this.log('Starting validation...');
-        this.setStatus('running', 'Validating...');
+        this.log('Checking device connection...');
+        this.setStatus('running', 'Connecting...');
         this.startBtn.disabled = true;
         this.stopBtn.disabled = false;
         this.clearBtn.disabled = true;
@@ -209,13 +209,23 @@ class ZapGuardApp {
             const data = await response.json();
 
             if (data.error) {
-                this.setStatus('error', 'Error');
-                this.showError(data.error);
+                // Check if it's a connection error
+                if (data.connection_error) {
+                    this.setStatus('error', 'Connection Failed');
+                    this.log(`ERROR: ${data.error}`);
+                    this.showConnectionError(data.error, data.details);
+                } else {
+                    this.setStatus('error', 'Error');
+                    this.showError(data.error);
+                }
                 this.startBtn.disabled = false;
                 this.stopBtn.disabled = true;
                 this.clearBtn.disabled = false;
                 return;
             }
+
+            this.log('Device is reachable. Starting validation...');
+            this.setStatus('running', 'Validating...');
 
             this.sessionId = data.session_id;
             this.startPolling();
@@ -498,6 +508,11 @@ class ZapGuardApp {
 
     showError(message) {
         this.log(`ERROR: ${message}`);
+        alert(message);
+    }
+
+    showConnectionError(error, details) {
+        const message = `${error}\n\n${details}`;
         alert(message);
     }
 

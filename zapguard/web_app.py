@@ -311,6 +311,28 @@ def upload_report():
         return jsonify({'error': f'Failed to parse report: {str(e)}'}), 400
 
 
+def check_device_connection(url: str) -> tuple:
+    """Check if device is reachable. Returns (success, error_message)."""
+    import requests as req
+    try:
+        req.get(url, timeout=10, verify=False)
+        return True, None
+    except req.exceptions.ConnectTimeout:
+        return False, "Connection timed out. The device may be unreachable or slow to respond."
+    except req.exceptions.ConnectionError as e:
+        error_str = str(e).lower()
+        if "name or service not known" in error_str or "getaddrinfo failed" in error_str:
+            return False, "Could not resolve hostname. Please check the URL/IP address."
+        elif "connection refused" in error_str:
+            return False, "Connection refused. The device may be down or the port is not open."
+        else:
+            return False, f"Cannot connect to device. Please check if the device is online."
+    except req.exceptions.Timeout:
+        return False, "Request timed out. The device is not responding."
+    except Exception as e:
+        return False, f"Connection check failed: {str(e)[:100]}"
+
+
 @app.route('/api/start-validation', methods=['POST'])
 def start_validation():
     """Start a validation session."""
@@ -327,6 +349,17 @@ def start_validation():
 
     if not report_path or not Path(report_path).exists():
         return jsonify({'error': 'Report file not found'}), 400
+
+    # Check device connectivity before proceeding
+    is_reachable, error_msg = check_device_connection(url)
+    if not is_reachable:
+        return jsonify({
+            'error': f'Device Not Reachable: {error_msg}',
+            'connection_error': True,
+            'details': 'Please verify: 1) The device is powered on and connected to the network, '
+                      '2) The IP address or hostname is correct, '
+                      '3) There are no firewall rules blocking the connection'
+        }), 503
 
     try:
         alerts = parse_zap_report(report_path)

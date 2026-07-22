@@ -308,6 +308,7 @@ def generate_html_report(results: List[TestResult], alerts: List[Alert],
         <div class="footer">
             <p>ZAP Vulnerability Fix Verification Report</p>
             <p>Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
+            <p style="margin-top: 10px; color: #888;">Developed by System Test Team | Maintained by Viswa M</p>
         </div>
     </div>
 </body>
@@ -513,6 +514,8 @@ def generate_pdf_report(results: List[TestResult], alerts: List[Alert],
     )
     elements.append(Paragraph("ZAP Vulnerability Fix Verification Report", footer_style))
     elements.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", footer_style))
+    elements.append(Spacer(1, 8))
+    elements.append(Paragraph("Developed by System Test Team | Maintained by Viswa M", footer_style))
 
     doc.build(elements)
     return output_path

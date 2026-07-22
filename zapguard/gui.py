@@ -574,6 +574,9 @@ class ZapGuardWindow(QMainWindow):
                         else "#ef4444" if "Issue" in self.status_text.text() or "Error" in self.status_text.text()
                         else "#3b82f6")
 
+        # Update credits label
+        self.credits_label.setStyleSheet(f"color: {theme['text_muted']};")
+
     def _toggle_theme(self):
         self._dark_mode = not self._dark_mode
         self._apply_theme()
@@ -908,7 +911,15 @@ class ZapGuardWindow(QMainWindow):
         stats_row.addStretch()
         main_layout.addLayout(stats_row)
 
-        # ===== RESULTS =====
+        # ===== RESULTS AND LOG SPLITTER =====
+        results_log_splitter = QSplitter(Qt.Vertical)
+
+        # Results container
+        results_widget = QWidget()
+        results_layout = QVBoxLayout(results_widget)
+        results_layout.setContentsMargins(0, 0, 0, 0)
+        results_layout.setSpacing(8)
+
         results_header = QHBoxLayout()
         self.results_title = QLabel("Results")
         self.results_title.setFont(QFont("Segoe UI", 11, QFont.Bold))
@@ -950,9 +961,9 @@ class ZapGuardWindow(QMainWindow):
         self.results_count.setStyleSheet("color: #64748b;")
         results_header.addWidget(self.results_count)
 
-        main_layout.addLayout(results_header)
+        results_layout.addLayout(results_header)
 
-        # Results table (no splitter here - details panel is on main splitter)
+        # Results table
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(6)
         self.results_table.setHorizontalHeaderLabels([
@@ -967,21 +978,50 @@ class ZapGuardWindow(QMainWindow):
         self.results_table.setSortingEnabled(True)
         self.results_table.horizontalHeader().setSortIndicatorShown(True)
         self.results_table.itemSelectionChanged.connect(self._on_row_selected)
-        main_layout.addWidget(self.results_table, 1)
+        results_layout.addWidget(self.results_table, 1)
+
+        results_log_splitter.addWidget(results_widget)
 
         # ===== LOG =====
+        log_widget = QWidget()
+        log_layout = QVBoxLayout(log_widget)
+        log_layout.setContentsMargins(0, 0, 0, 0)
+        log_layout.setSpacing(4)
+
         log_header = QHBoxLayout()
         self.log_title = QLabel("Activity Log")
         self.log_title.setFont(QFont("Segoe UI", 10))
         log_header.addWidget(self.log_title)
         log_header.addStretch()
-        main_layout.addLayout(log_header)
+        log_layout.addLayout(log_header)
 
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setFont(QFont("Consolas", 9))
-        self.log_text.setFixedHeight(70)
-        main_layout.addWidget(self.log_text)
+        self.log_text.setMinimumHeight(50)
+        log_layout.addWidget(self.log_text, 1)
+
+        results_log_splitter.addWidget(log_widget)
+
+        # Set initial sizes (results larger, log smaller)
+        results_log_splitter.setSizes([400, 100])
+        results_log_splitter.setStretchFactor(0, 4)
+        results_log_splitter.setStretchFactor(1, 1)
+
+        main_layout.addWidget(results_log_splitter, 1)
+
+        # ===== FOOTER / CREDITS =====
+        footer_layout = QHBoxLayout()
+        footer_layout.setContentsMargins(0, 5, 0, 0)
+
+        self.credits_label = QLabel("Developed by System Test Team | Maintained by Viswa M")
+        self.credits_label.setFont(QFont("Segoe UI", 8))
+        self.credits_label.setStyleSheet("color: #64748b;")
+        footer_layout.addStretch()
+        footer_layout.addWidget(self.credits_label)
+        footer_layout.addStretch()
+
+        main_layout.addLayout(footer_layout)
 
         # Add left widget to main splitter
         main_splitter.addWidget(left_widget)
@@ -1251,6 +1291,27 @@ class ZapGuardWindow(QMainWindow):
         self.status_text.setStyleSheet(f"color: {color};")
         self.status_indicator.setStyleSheet(f"background: {color}; border-radius: 5px;")
 
+    def _check_device_connection(self, url: str) -> tuple:
+        """Check if device is reachable. Returns (success, error_message)."""
+        import requests
+        try:
+            requests.get(url, timeout=10, verify=False)
+            return True, None
+        except requests.exceptions.ConnectTimeout:
+            return False, "Connection timed out. The device may be unreachable or slow to respond."
+        except requests.exceptions.ConnectionError as e:
+            error_str = str(e).lower()
+            if "name or service not known" in error_str or "getaddrinfo failed" in error_str:
+                return False, "Could not resolve hostname. Please check the URL/IP address."
+            elif "connection refused" in error_str:
+                return False, "Connection refused. The device may be down or the port is not open."
+            else:
+                return False, f"Cannot connect to device. Please check if the device is online.\n\nDetails: {str(e)[:200]}"
+        except requests.exceptions.Timeout:
+            return False, "Request timed out. The device is not responding."
+        except Exception as e:
+            return False, f"Connection check failed: {str(e)[:200]}"
+
     def _start_validation(self):
         if self.is_running:
             return
@@ -1268,6 +1329,27 @@ class ZapGuardWindow(QMainWindow):
         if not report or not Path(report).exists():
             QMessageBox.warning(self, "Error", "Please select a valid ZAP report file.")
             return
+
+        # Check device connectivity before proceeding
+        self._log("Checking device connection...")
+        self._set_status("Connecting...", "#f59e0b")
+        QApplication.processEvents()
+
+        is_reachable, error_msg = self._check_device_connection(url)
+        if not is_reachable:
+            QMessageBox.critical(
+                self,
+                "Device Not Reachable",
+                f"Cannot connect to the target device.\n\n{error_msg}\n\nPlease verify:\n"
+                "1. The device is powered on and connected to the network\n"
+                "2. The IP address or hostname is correct\n"
+                "3. There are no firewall rules blocking the connection"
+            )
+            self._set_status("Connection Failed", "#ef4444")
+            self._log(f"Connection failed: {error_msg}")
+            return
+
+        self._log("Device is reachable. Proceeding...")
 
         self._clear_results()
         self._log("Parsing ZAP report...")

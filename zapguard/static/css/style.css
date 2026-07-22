@@ -560,6 +560,16 @@ body {
     margin-bottom: 2px;
 }
 
+/* ========== Credits Footer ========== */
+.credits-footer {
+    padding: 8px 15px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+}
+
 /* ========== Details Panel ========== */
 .details-panel {
     height: 100%;
