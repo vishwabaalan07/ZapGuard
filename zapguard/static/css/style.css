@@ -41,8 +41,8 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    font-size: 13px;
-    line-height: 1.4;
+    font-size: 15px;
+    line-height: 1.5;
     overflow: hidden;
 }
 
@@ -72,9 +72,10 @@ body {
 .right-panel {
     width: 350px;
     min-width: 280px;
-    max-width: 450px;
     border-left: 1px solid var(--border-color);
     background-color: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
 }
 
 /* ========== Header ========== */
@@ -92,16 +93,28 @@ body {
     flex-direction: column;
 }
 
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-img {
+    width: 36px;
+    height: 36px;
+}
+
 .logo {
-    font-size: 20px;
+    font-size: 24px;
     font-weight: 700;
     color: var(--accent-color);
     letter-spacing: 1px;
 }
 
 .tagline {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--text-secondary);
+    margin-left: 46px;
 }
 
 .header-right {
@@ -135,13 +148,13 @@ body {
 }
 
 .status-text {
-    font-size: 12px;
+    font-size: 14px;
     color: var(--text-secondary);
 }
 
 .theme-btn {
-    padding: 5px 12px;
-    font-size: 11px;
+    padding: 6px 14px;
+    font-size: 13px;
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -172,17 +185,17 @@ body {
 }
 
 .input-label {
-    width: 80px;
-    font-size: 12px;
+    width: 90px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--text-secondary);
     flex-shrink: 0;
 }
 
 .scheme-select {
-    width: 85px;
-    padding: 6px 8px;
-    font-size: 12px;
+    width: 95px;
+    padding: 8px 10px;
+    font-size: 14px;
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -190,8 +203,8 @@ body {
 }
 
 .text-input {
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 8px 12px;
+    font-size: 14px;
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -223,8 +236,8 @@ body {
 
 /* ========== Buttons ========== */
 .btn {
-    padding: 6px 14px;
-    font-size: 12px;
+    padding: 8px 16px;
+    font-size: 14px;
     font-weight: 500;
     border: none;
     border-radius: 4px;
@@ -313,15 +326,15 @@ body {
 }
 
 .progress-text {
-    width: 40px;
-    font-size: 11px;
+    width: 45px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
 }
 
 .progress-detail {
     flex: 1;
-    font-size: 11px;
+    font-size: 13px;
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -351,12 +364,12 @@ body {
 }
 
 .stat-value {
-    font-size: 18px;
+    font-size: 22px;
     font-weight: 700;
 }
 
 .stat-label {
-    font-size: 10px;
+    font-size: 12px;
     color: var(--text-secondary);
     text-transform: uppercase;
 }
@@ -375,6 +388,7 @@ body {
     flex-direction: column;
     overflow: hidden;
     background-color: var(--bg-secondary);
+    min-height: 150px;
 }
 
 .results-header {
@@ -386,24 +400,24 @@ body {
 }
 
 .results-title {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
 }
 
 .results-filters {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
 }
 
 .filter-label {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--text-secondary);
 }
 
 .filter-select {
-    padding: 4px 8px;
-    font-size: 11px;
+    padding: 6px 10px;
+    font-size: 13px;
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -411,9 +425,9 @@ body {
 }
 
 .search-input {
-    padding: 4px 8px;
-    font-size: 11px;
-    width: 120px;
+    padding: 6px 10px;
+    font-size: 13px;
+    width: 140px;
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -421,7 +435,7 @@ body {
 }
 
 .results-count {
-    font-size: 11px;
+    font-size: 13px;
     color: var(--text-muted);
 }
 
@@ -434,7 +448,7 @@ body {
 .results-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: 14px;
 }
 
 .results-table th {
@@ -489,7 +503,7 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: monospace;
-    font-size: 10px;
+    font-size: 13px;
 }
 
 .details-cell {
@@ -503,8 +517,8 @@ body {
 /* ========== Status & Risk Badges ========== */
 .status-badge, .risk-badge {
     display: inline-block;
-    padding: 2px 6px;
-    font-size: 10px;
+    padding: 4px 8px;
+    font-size: 12px;
     font-weight: 600;
     border-radius: 3px;
     text-transform: uppercase;
@@ -528,19 +542,53 @@ body {
 .risk-text.risk-medium { color: var(--warning-color); }
 .risk-text.risk-low { color: var(--info-color); }
 
+/* ========== Resizable Splitter ========== */
+.resizable-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.resize-handle-horizontal {
+    height: 6px;
+    background: var(--border-color);
+    cursor: ns-resize;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+.resize-handle-horizontal:hover,
+.resize-handle-horizontal.active {
+    background: var(--accent-color);
+}
+
+.resize-handle-vertical {
+    width: 6px;
+    background: var(--border-color);
+    cursor: ew-resize;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+.resize-handle-vertical:hover,
+.resize-handle-vertical.active {
+    background: var(--accent-color);
+}
+
 /* ========== Log Section ========== */
 .log-section {
-    height: 100px;
-    min-height: 80px;
+    min-height: 100px;
     border-top: 1px solid var(--border-color);
     background-color: var(--bg-secondary);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .log-title {
-    padding: 6px 15px;
-    font-size: 12px;
+    padding: 8px 15px;
+    font-size: 14px;
     font-weight: 600;
     background-color: var(--bg-tertiary);
     border-bottom: 1px solid var(--border-color);
@@ -549,9 +597,9 @@ body {
 .log-container {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 15px;
+    padding: 10px 15px;
     font-family: monospace;
-    font-size: 11px;
+    font-size: 13px;
     background-color: var(--bg-primary);
 }
 
@@ -562,9 +610,9 @@ body {
 
 /* ========== Credits Footer ========== */
 .credits-footer {
-    padding: 8px 15px;
+    padding: 10px 15px;
     text-align: center;
-    font-size: 11px;
+    font-size: 13px;
     color: var(--text-muted);
     border-top: 1px solid var(--border-color);
     background-color: var(--bg-secondary);
@@ -580,10 +628,11 @@ body {
 
 .details-title {
     padding: 12px 15px;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     border-bottom: 1px solid var(--border-color);
     background-color: var(--bg-tertiary);
+    flex-shrink: 0;
 }
 
 .details-content {
@@ -593,11 +642,13 @@ body {
     padding: 12px 15px;
     gap: 10px;
     overflow: auto;
+    min-height: 0;
 }
 
 .detail-row {
     display: flex;
     gap: 10px;
+    flex-shrink: 0;
 }
 
 .detail-field {
@@ -614,38 +665,42 @@ body {
 
 .detail-field.flex-grow {
     flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .detail-label {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--text-secondary);
     text-transform: uppercase;
 }
 
 .detail-value {
-    font-size: 12px;
-    padding: 6px 10px;
+    font-size: 14px;
+    padding: 8px 12px;
     background-color: var(--bg-tertiary);
     border-radius: 4px;
     border: 1px solid var(--border-color);
 }
 
 .detail-textarea {
-    font-size: 11px;
+    font-size: 13px;
     font-family: monospace;
-    padding: 8px 10px;
+    padding: 10px 12px;
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     border-radius: 4px;
-    resize: none;
-    min-height: 60px;
+    resize: vertical;
+    min-height: 80px;
 }
 
 .detail-textarea.large {
     flex: 1;
     min-height: 150px;
+    height: 100%;
 }
 
 /* ========== Responsive ========== */

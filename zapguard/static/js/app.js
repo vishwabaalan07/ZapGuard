@@ -529,7 +529,90 @@ class ZapGuardApp {
     }
 }
 
+// Resizable Splitter Class
+class ResizableSplitter {
+    constructor(handle, panel1, panel2, isVertical = false, options = {}) {
+        this.handle = handle;
+        this.panel1 = panel1;
+        this.panel2 = panel2;
+        this.isVertical = isVertical;
+        this.minSize1 = options.minSize1 || 100;
+        this.minSize2 = options.minSize2 || 100;
+        this.isDragging = false;
+
+        this.init();
+    }
+
+    init() {
+        this.handle.addEventListener('mousedown', (e) => this.startDrag(e));
+        document.addEventListener('mousemove', (e) => this.drag(e));
+        document.addEventListener('mouseup', () => this.stopDrag());
+    }
+
+    startDrag(e) {
+        e.preventDefault();
+        this.isDragging = true;
+        this.handle.classList.add('active');
+        document.body.style.cursor = this.isVertical ? 'ew-resize' : 'ns-resize';
+        document.body.style.userSelect = 'none';
+    }
+
+    drag(e) {
+        if (!this.isDragging) return;
+
+        const container = this.panel1.parentElement;
+        const containerRect = container.getBoundingClientRect();
+
+        if (this.isVertical) {
+            const mouseX = e.clientX - containerRect.left;
+            const handleWidth = this.handle.offsetWidth;
+            const newWidth1 = Math.max(this.minSize1, Math.min(mouseX, containerRect.width - this.minSize2 - handleWidth));
+            this.panel1.style.flex = 'none';
+            this.panel1.style.width = `${newWidth1}px`;
+            this.panel2.style.flex = '1';
+        } else {
+            const mouseY = e.clientY - containerRect.top;
+            const handleHeight = this.handle.offsetHeight;
+            const newHeight1 = Math.max(this.minSize1, Math.min(mouseY, containerRect.height - this.minSize2 - handleHeight));
+            this.panel1.style.flex = 'none';
+            this.panel1.style.height = `${newHeight1}px`;
+            this.panel2.style.flex = '1';
+        }
+    }
+
+    stopDrag() {
+        if (!this.isDragging) return;
+        this.isDragging = false;
+        this.handle.classList.remove('active');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    }
+}
+
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     window.zapguard = new ZapGuardApp();
+
+    // Initialize resizable splitters
+    const resultsLogHandle = document.getElementById('resultsLogHandle');
+    const resultsSection = document.getElementById('resultsSection');
+    const logSection = document.getElementById('logSection');
+
+    if (resultsLogHandle && resultsSection && logSection) {
+        new ResizableSplitter(resultsLogHandle, resultsSection, logSection, false, {
+            minSize1: 150,
+            minSize2: 80
+        });
+    }
+
+    const mainSplitterHandle = document.getElementById('mainSplitterHandle');
+    const leftPanel = document.querySelector('.left-panel');
+    const rightPanel = document.getElementById('rightPanel');
+
+    if (mainSplitterHandle && leftPanel && rightPanel) {
+        new ResizableSplitter(mainSplitterHandle, leftPanel, rightPanel, true, {
+            minSize1: 500,
+            minSize2: 250
+        });
+    }
 });
