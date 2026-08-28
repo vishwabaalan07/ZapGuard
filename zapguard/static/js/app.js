@@ -699,12 +699,15 @@ class ZapGuardApp {
     }
 
     async loadNmapProfiles() {
+        console.log('Loading Nmap profiles...');
         try {
             const response = await fetch('/api/nmap-profiles');
             const data = await response.json();
+            console.log('Nmap profiles response:', data);
 
             if (data.profiles && this.nmapScanGrid) {
                 this.nmapProfiles = data.profiles;
+                console.log('Populating', data.profiles.length, 'scan types');
                 this.nmapScanGrid.innerHTML = '';
 
                 data.profiles.forEach(profile => {
@@ -756,6 +759,7 @@ class ZapGuardApp {
 
     handleNmapCheckboxChange() {
         const enabled = this.nmapCheckbox.checked;
+        console.log('Nmap checkbox changed:', enabled, 'Panel:', this.nmapScanPanel);
 
         if (this.nmapOnlyCheckbox) {
             this.nmapOnlyCheckbox.disabled = !enabled;
@@ -766,6 +770,9 @@ class ZapGuardApp {
 
         if (this.nmapScanPanel) {
             this.nmapScanPanel.style.display = enabled ? 'block' : 'none';
+            console.log('Panel display set to:', this.nmapScanPanel.style.display);
+        } else {
+            console.error('nmapScanPanel not found!');
         }
     }
 
