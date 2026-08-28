@@ -704,6 +704,12 @@ class ZapGuardApp {
             const response = await fetch('/api/nmap-profiles');
             const data = await response.json();
             console.log('Nmap profiles response:', data);
+            console.log('nmapScanGrid element:', this.nmapScanGrid);
+
+            if (data.error) {
+                console.error('API error:', data.error);
+                return;
+            }
 
             if (data.profiles && this.nmapScanGrid) {
                 this.nmapProfiles = data.profiles;
@@ -751,6 +757,14 @@ class ZapGuardApp {
                     quickItem.classList.add('selected');
                 }
                 this.updateSelectedScansCount();
+
+                // Initially hide the panel if Nmap is not enabled
+                if (this.nmapScanPanel && this.nmapCheckbox && !this.nmapCheckbox.checked) {
+                    this.nmapScanPanel.style.display = 'none';
+                }
+                console.log('Profiles loaded successfully, panel visibility:', this.nmapScanPanel?.style.display);
+            } else {
+                console.error('No profiles or nmapScanGrid not found. Grid:', this.nmapScanGrid);
             }
         } catch (err) {
             console.error('Failed to load Nmap profiles:', err);
