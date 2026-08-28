@@ -12,9 +12,13 @@ class ZapGuardApp {
         this.sortAsc = true;
         this.pollingInterval = null;
         this.isDarkTheme = true;
+        this.nmapAvailable = false;
+        this.nmapResults = null;
+        this.nmapAlertShown = false;
 
         this.initElements();
         this.initEventListeners();
+        this.checkNmapStatus();
         this.log('ZapGuard Web ready.');
     }
 
@@ -34,6 +38,21 @@ class ZapGuardApp {
         this.exportHtmlBtn = document.getElementById('exportHtmlBtn');
         this.exportPdfBtn = document.getElementById('exportPdfBtn');
         this.exportCsvBtn = document.getElementById('exportCsvBtn');
+        this.exportNmapBtn = document.getElementById('exportNmapBtn');
+
+        // Nmap
+        this.nmapCheckbox = document.getElementById('nmapCheckbox');
+        this.nmapOnlyCheckbox = document.getElementById('nmapOnlyCheckbox');
+        this.nmapStatus = document.getElementById('nmapStatus');
+        this.nmapScanPanel = document.getElementById('nmapScanPanel');
+        this.nmapScanGrid = document.getElementById('nmapScanGrid');
+        this.selectedScansCount = document.getElementById('selectedScansCount');
+        this.nmapProgressSection = document.getElementById('nmapProgressSection');
+        this.nmapProgressBar = document.getElementById('nmapProgressBar');
+        this.nmapProgressStatus = document.getElementById('nmapProgressStatus');
+        this.nmapProgressDetail = document.getElementById('nmapProgressDetail');
+        this.nmapProfiles = [];
+        this.nmapScanning = false;
 
         // Progress
         this.progressBar = document.getElementById('progressBar');
@@ -94,6 +113,7 @@ class ZapGuardApp {
         this.exportHtmlBtn.addEventListener('click', () => this.exportReport('html'));
         this.exportPdfBtn.addEventListener('click', () => this.exportReport('pdf'));
         this.exportCsvBtn.addEventListener('click', () => this.exportReport('csv'));
+        this.exportNmapBtn.addEventListener('click', () => this.exportNmapReport());
 
         // Filters
         this.statusFilter.addEventListener('change', () => this.applyFilters());
@@ -108,6 +128,17 @@ class ZapGuardApp {
 
         // Theme toggle
         this.themeToggle.addEventListener('click', () => this.toggleTheme());
+
+        // Nmap controls
+        if (this.nmapCheckbox) {
+            this.nmapCheckbox.addEventListener('change', () => this.handleNmapCheckboxChange());
+        }
+        if (this.nmapOnlyCheckbox) {
+            this.nmapOnlyCheckbox.addEventListener('change', () => this.handleNmapOnlyChange());
+        }
+        if (this.nmapScanSelect) {
+            this.nmapScanSelect.addEventListener('change', () => this.updateSelectedScansCount());
+        }
     }
 
     validateUrl() {
@@ -186,7 +217,11 @@ class ZapGuardApp {
             return;
         }
 
-        if (!this.reportPath) {
+        const nmapEnabled = this.nmapCheckbox && this.nmapCheckbox.checked;
+        const nmapOnly = this.nmapOnlyCheckbox && this.nmapOnlyCheckbox.checked;
+
+        // ZAP report required unless Nmap-only mode
+        if (!this.reportPath && !nmapOnly) {
             this.showError('Please upload a ZAP report first');
             return;
         }
@@ -197,13 +232,42 @@ class ZapGuardApp {
         this.stopBtn.disabled = false;
         this.clearBtn.disabled = true;
 
+        const nmapScanTypes = this.getSelectedNmapScanTypes();
+        if (nmapEnabled) {
+            // Get human-readable scan names
+            const scanNames = nmapScanTypes.map(id => {
+                const profile = this.nmapProfiles.find(p => p.id === id);
+                return profile ? profile.name : id;
+            }).join(', ');
+
+            if (nmapOnly) {
+                this.log(`Nmap-only mode - Selected: ${scanNames}`);
+            } else {
+                this.log(`Nmap scan enabled - Selected: ${scanNames}`);
+            }
+
+            // Reset Nmap progress UI
+            this.nmapScanning = false;
+            this.showNmapProgress(false);
+            if (this.nmapProgressBar) {
+                this.nmapProgressBar.classList.remove('indeterminate');
+                this.nmapProgressBar.style.width = '0%';
+            }
+            if (this.nmapProgressStatus) {
+                this.nmapProgressStatus.classList.remove('completed');
+            }
+        }
+
         try {
             const response = await fetch('/api/start-validation', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     url: fullUrl,
-                    report_path: this.reportPath
+                    report_path: this.reportPath || '',
+                    nmap_enabled: nmapEnabled,
+                    nmap_scan_types: nmapScanTypes,
+                    nmap_only: nmapOnly
                 })
             });
             const data = await response.json();
@@ -304,8 +368,49 @@ class ZapGuardApp {
             // Update logs
             this.updateLogs(data.logs);
 
+            // Handle Nmap progress via logs
+            if (data.logs) {
+                // Detect Nmap scan starting
+                if (data.logs.some(log => log.includes('NMAP SCAN INITIATED')) && !this.nmapScanning) {
+                    this.nmapScanning = true;
+                    this.nmapAlertShown = true;
+                    this.setStatus('running', 'Nmap Scanning...');
+                    this.showNmapProgress(true);
+                    this.updateNmapProgress('Initializing scan...', 'Preparing Nmap scanner');
+                }
+
+                // Update Nmap progress based on log messages
+                if (this.nmapScanning) {
+                    const lastLogs = data.logs.slice(-5);
+                    for (const log of lastLogs) {
+                        if (log.includes('Running port scan')) {
+                            this.updateNmapProgress('Scanning ports...', 'Detecting open ports and services');
+                        } else if (log.includes('Running SSL scan')) {
+                            this.updateNmapProgress('SSL/TLS Analysis...', 'Checking for vulnerabilities');
+                        } else if (log.includes('Found') && log.includes('open ports')) {
+                            const match = log.match(/Found (\d+) open ports/);
+                            if (match) {
+                                this.updateNmapProgress('Port scan complete', `${match[1]} open ports found`);
+                            }
+                        } else if (log.includes('Starting') && log.includes('Scan')) {
+                            const scanName = log.match(/Starting (.+?)\.\.\./)?.[1] || 'scan';
+                            this.updateNmapProgress(`Running ${scanName}...`, 'This may take a few minutes');
+                        }
+                    }
+                }
+            }
+
+            // Store Nmap results if available
+            if (data.nmap_results && !this.nmapResults) {
+                this.nmapResults = data.nmap_results;
+                this.completeNmapProgress();
+                this.log(`Nmap scan complete: ${data.nmap_results.ports.length} ports, ${data.nmap_results.ssl_findings.length} SSL findings`);
+            }
+
             // Check if completed
             if (data.status === 'completed' || data.status === 'stopped') {
+                this.nmapScanning = false;
+                this.nmapAlertShown = false;
                 this.stopPolling();
                 this.setStatus(data.status === 'completed' ? 'success' : 'stopped',
                               data.status === 'completed' ? 'Completed' : 'Stopped');
@@ -313,6 +418,11 @@ class ZapGuardApp {
                 this.stopBtn.disabled = true;
                 this.clearBtn.disabled = false;
                 this.enableExports();
+
+                // Enable Nmap export if results available
+                if (this.nmapResults && this.exportNmapBtn) {
+                    this.exportNmapBtn.disabled = false;
+                }
             }
         } catch (err) {
             console.error('Polling error:', err);
@@ -447,11 +557,37 @@ class ZapGuardApp {
         this.detailEndpoint.value = '-';
         this.detailEvidence.value = '-';
 
+        // Reset Nmap data
+        this.nmapResults = null;
+        this.nmapAlertShown = false;
+        this.nmapScanning = false;
+
+        // Reset Nmap UI
+        if (this.nmapOnlyCheckbox) {
+            this.nmapOnlyCheckbox.checked = false;
+            this.handleNmapOnlyChange();
+        }
+        if (this.nmapScanPanel && this.nmapCheckbox && !this.nmapCheckbox.checked) {
+            this.nmapScanPanel.style.display = 'none';
+        }
+        // Hide and reset Nmap progress
+        this.showNmapProgress(false);
+        if (this.nmapProgressBar) {
+            this.nmapProgressBar.classList.remove('indeterminate');
+            this.nmapProgressBar.style.width = '0%';
+        }
+        if (this.nmapProgressStatus) {
+            this.nmapProgressStatus.classList.remove('completed');
+        }
+
         // Reset buttons
         this.startBtn.disabled = false;
         this.stopBtn.disabled = true;
         this.clearBtn.disabled = false;
         this.disableExports();
+        if (this.exportNmapBtn) {
+            this.exportNmapBtn.disabled = true;
+        }
 
         this.setStatus('ready', 'Ready');
         this.log('Cleared all results.');
@@ -526,6 +662,175 @@ class ZapGuardApp {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    async checkNmapStatus() {
+        try {
+            const response = await fetch('/api/nmap-status');
+            const data = await response.json();
+
+            this.nmapAvailable = data.available;
+
+            if (this.nmapCheckbox && this.nmapStatus) {
+                if (data.available) {
+                    this.nmapCheckbox.disabled = false;
+                    this.nmapStatus.textContent = '(Available)';
+                    this.nmapStatus.className = 'nmap-status available';
+                    // Load scan profiles
+                    this.loadNmapProfiles();
+                } else {
+                    this.nmapCheckbox.disabled = true;
+                    this.nmapCheckbox.checked = false;
+                    this.nmapStatus.textContent = `(${data.reason})`;
+                    this.nmapStatus.className = 'nmap-status unavailable';
+                    if (this.nmapOnlyCheckbox) {
+                        this.nmapOnlyCheckbox.disabled = true;
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Failed to check Nmap status:', err);
+            if (this.nmapCheckbox && this.nmapStatus) {
+                this.nmapCheckbox.disabled = true;
+                this.nmapStatus.textContent = '(Status unknown)';
+                this.nmapStatus.className = 'nmap-status unavailable';
+            }
+        }
+    }
+
+    async loadNmapProfiles() {
+        try {
+            const response = await fetch('/api/nmap-profiles');
+            const data = await response.json();
+
+            if (data.profiles && this.nmapScanGrid) {
+                this.nmapProfiles = data.profiles;
+                this.nmapScanGrid.innerHTML = '';
+
+                data.profiles.forEach(profile => {
+                    const item = document.createElement('div');
+                    item.className = 'nmap-scan-item';
+                    item.dataset.scanId = profile.id;
+
+                    item.innerHTML = `
+                        <input type="checkbox" id="scan_${profile.id}" value="${profile.id}">
+                        <div class="nmap-scan-item-content">
+                            <div class="nmap-scan-item-name">${profile.name}</div>
+                            <div class="nmap-scan-item-desc" title="${profile.description}">${profile.description}</div>
+                            <span class="nmap-scan-item-time">${profile.estimated_time}</span>
+                        </div>
+                    `;
+
+                    const checkbox = item.querySelector('input[type="checkbox"]');
+
+                    // Click on item toggles checkbox
+                    item.addEventListener('click', (e) => {
+                        if (e.target !== checkbox) {
+                            checkbox.checked = !checkbox.checked;
+                        }
+                        item.classList.toggle('selected', checkbox.checked);
+                        this.updateSelectedScansCount();
+                    });
+
+                    checkbox.addEventListener('change', () => {
+                        item.classList.toggle('selected', checkbox.checked);
+                        this.updateSelectedScansCount();
+                    });
+
+                    this.nmapScanGrid.appendChild(item);
+                });
+
+                // Select "quick" by default
+                const quickItem = this.nmapScanGrid.querySelector('[data-scan-id="quick"]');
+                if (quickItem) {
+                    const checkbox = quickItem.querySelector('input[type="checkbox"]');
+                    checkbox.checked = true;
+                    quickItem.classList.add('selected');
+                }
+                this.updateSelectedScansCount();
+            }
+        } catch (err) {
+            console.error('Failed to load Nmap profiles:', err);
+        }
+    }
+
+    handleNmapCheckboxChange() {
+        const enabled = this.nmapCheckbox.checked;
+
+        if (this.nmapOnlyCheckbox) {
+            this.nmapOnlyCheckbox.disabled = !enabled;
+            if (!enabled) {
+                this.nmapOnlyCheckbox.checked = false;
+            }
+        }
+
+        if (this.nmapScanPanel) {
+            this.nmapScanPanel.style.display = enabled ? 'block' : 'none';
+        }
+    }
+
+    handleNmapOnlyChange() {
+        // If Nmap Only is checked, ZAP report becomes optional
+        const nmapOnly = this.nmapOnlyCheckbox && this.nmapOnlyCheckbox.checked;
+        if (nmapOnly) {
+            this.reportPathInput.placeholder = 'ZAP report (optional for Nmap-only mode)';
+        } else {
+            this.reportPathInput.placeholder = 'Upload ZAP report (.html, .xml, .json)';
+        }
+    }
+
+    updateSelectedScansCount() {
+        if (this.nmapScanGrid && this.selectedScansCount) {
+            const selected = this.nmapScanGrid.querySelectorAll('input[type="checkbox"]:checked').length;
+            this.selectedScansCount.textContent = `${selected} selected`;
+        }
+    }
+
+    showNmapProgress(show = true) {
+        if (this.nmapProgressSection) {
+            this.nmapProgressSection.style.display = show ? 'block' : 'none';
+        }
+        if (show && this.nmapProgressBar) {
+            this.nmapProgressBar.classList.add('indeterminate');
+            this.nmapProgressBar.style.width = '30%';
+        }
+    }
+
+    updateNmapProgress(status, detail = '') {
+        if (this.nmapProgressStatus) {
+            this.nmapProgressStatus.textContent = status;
+        }
+        if (this.nmapProgressDetail) {
+            this.nmapProgressDetail.textContent = detail;
+        }
+    }
+
+    completeNmapProgress() {
+        if (this.nmapProgressBar) {
+            this.nmapProgressBar.classList.remove('indeterminate');
+            this.nmapProgressBar.style.width = '100%';
+        }
+        if (this.nmapProgressStatus) {
+            this.nmapProgressStatus.textContent = 'Completed';
+            this.nmapProgressStatus.classList.add('completed');
+        }
+    }
+
+    getSelectedNmapScanTypes() {
+        if (!this.nmapScanGrid) return ['quick'];
+        const checkboxes = this.nmapScanGrid.querySelectorAll('input[type="checkbox"]:checked');
+        const selected = Array.from(checkboxes).map(cb => cb.value);
+        return selected.length > 0 ? selected : ['quick'];
+    }
+
+    exportNmapReport() {
+        if (!this.sessionId || !this.nmapResults) {
+            this.showError('No Nmap scan results available');
+            return;
+        }
+
+        this.log('Exporting Nmap report...');
+        window.location.href = `/api/export-nmap/${this.sessionId}/html`;
     }
 }
 

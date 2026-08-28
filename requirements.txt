@@ -7,6 +7,9 @@ reportlab>=4.0.0
 Flask>=2.3.0
 flask-cors>=4.0.0
 
+# Optional: Nmap scanning (requires Nmap installed on system)
+python-nmap>=0.7.1
+
 # Development dependencies (optional)
 # pytest>=7.0.0
 # black>=23.0.0

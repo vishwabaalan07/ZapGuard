@@ -56,15 +56,21 @@ class ValidationSession:
     """Manages a validation session with progress tracking."""
 
     def __init__(self, session_id: str, alerts: List[Alert], base_url: str,
-                 report_path: str, timeout: int = 20, max_workers: int = 10):
+                 report_path: str, timeout: int = 20, max_workers: int = 10,
+                 nmap_enabled: bool = False, nmap_scan_types: List[str] = None,
+                 nmap_only: bool = False):
         self.session_id = session_id
         self.alerts = alerts
         self.base_url = base_url
         self.report_path = report_path
         self.timeout = timeout
         self.max_workers = max_workers
+        self.nmap_enabled = nmap_enabled
+        self.nmap_scan_types = nmap_scan_types or ["quick"]  # Default to quick scan
+        self.nmap_only = nmap_only  # Skip ZAP verification, run only Nmap
 
         self.results: List[TestResult] = []
+        self.nmap_result = None
         self.status = "idle"  # idle, running, stopped, completed
         self.progress = 0
         self.total = 0
@@ -93,6 +99,16 @@ class ValidationSession:
         self.status = "running"
         self.start_time = datetime.now()
         self._stop_event.clear()
+
+        # If Nmap-only mode, skip ZAP verification
+        if self.nmap_only:
+            self.log("Nmap-only mode - skipping ZAP verification")
+            self.total = 0
+            if self.nmap_enabled:
+                self._run_nmap_scan()
+            self.end_time = datetime.now()
+            self.status = "completed"
+            return
 
         client = HTTPClient(self.base_url, self.timeout, self._stop_event)
 
@@ -135,10 +151,15 @@ class ValidationSession:
 
         self.end_time = datetime.now()
         if not self.is_stopped():
-            self.status = "completed"
             passed = sum(1 for r in self.results if r.status == TestStatus.PASS)
             failed = sum(1 for r in self.results if r.status == TestStatus.FAIL)
-            self.log(f"Completed: {failed} failed, {passed} passed")
+            self.log(f"ZAP Verification: {failed} failed, {passed} passed")
+
+            # Run Nmap scan after ZAP validation if enabled
+            if self.nmap_enabled:
+                self._run_nmap_scan()
+
+            self.status = "completed"
         else:
             self.status = "stopped"
 
@@ -204,6 +225,90 @@ class ValidationSession:
                 'endpoint': r.endpoint,
                 'details': r.details
             } for r in self.results]
+
+    def _run_nmap_scan(self):
+        """Run Nmap scan after ZAP validation."""
+        try:
+            from .nmap_scanner import NmapScanner, NMAP_AVAILABLE, ScanType, SCAN_PROFILES
+            if not NMAP_AVAILABLE:
+                self.log("Nmap module not available, skipping scan")
+                return
+
+            self.log("=" * 40)
+            self.log("NMAP SCAN INITIATED")
+            self.log("=" * 40)
+            scanner = NmapScanner(log_callback=self.log)
+
+            if not scanner.check_nmap_installed():
+                self.log("Nmap not installed on system, skipping scan")
+                return
+
+            # Convert scan type strings to ScanType enums
+            scan_types = []
+            for st in self.nmap_scan_types:
+                try:
+                    scan_types.append(ScanType(st))
+                except ValueError:
+                    self.log(f"Unknown scan type: {st}, skipping")
+
+            if not scan_types:
+                # Default to quick scan
+                scan_types = [ScanType.QUICK]
+
+            # Log selected scans
+            scan_names = [SCAN_PROFILES[st]["name"] for st in scan_types]
+            self.log(f"Selected scans: {', '.join(scan_names)}")
+
+            # Run the scans
+            if len(scan_types) == 1:
+                self.nmap_result = scanner.run_scan(self.base_url, scan_types[0])
+            else:
+                self.nmap_result = scanner.run_multiple_scans(
+                    self.base_url, scan_types, sequential=True
+                )
+
+            if self.nmap_result.error:
+                self.log(f"Nmap error: {self.nmap_result.error}")
+            else:
+                self.log(f"Found {len(self.nmap_result.ports)} open ports")
+                if self.nmap_result.ssl_findings:
+                    self.log(f"SSL/TLS findings: {len(self.nmap_result.ssl_findings)}")
+
+            self.log(f"Nmap scan completed in {self.nmap_result.scan_time:.1f}s")
+
+        except ImportError as e:
+            self.log(f"Nmap module error: {e}")
+        except Exception as e:
+            self.log(f"Nmap scan failed: {e}")
+
+    def get_nmap_results_json(self) -> Optional[dict]:
+        """Get Nmap results as JSON-serializable dict."""
+        if not self.nmap_result:
+            return None
+
+        return {
+            'target': self.nmap_result.target,
+            'ip_address': self.nmap_result.ip_address,
+            'hostname': self.nmap_result.hostname,
+            'scan_time': self.nmap_result.scan_time,
+            'scan_types': self.nmap_result.scan_types,
+            'os_info': self.nmap_result.os_info,
+            'host_status': self.nmap_result.host_status,
+            'ports': [{
+                'port': p.port,
+                'protocol': p.protocol,
+                'state': p.state,
+                'service': p.service,
+                'version': p.version,
+                'product': p.product
+            } for p in self.nmap_result.ports],
+            'ssl_findings': [{
+                'title': f.title,
+                'severity': f.severity.value,
+                'description': f.description,
+                'port': f.port
+            } for f in self.nmap_result.ssl_findings]
+        }
 
 
 def is_valid_url(url: str) -> bool:
@@ -340,6 +445,9 @@ def start_validation():
 
     url = data.get('url', '').strip()
     report_path = data.get('report_path', '').strip()
+    nmap_enabled = data.get('nmap_enabled', False)
+    nmap_scan_types = data.get('nmap_scan_types', ['quick'])  # List of scan type IDs
+    nmap_only = data.get('nmap_only', False)  # Run only Nmap, skip ZAP
 
     if not url:
         return jsonify({'error': 'Target URL is required'}), 400
@@ -347,8 +455,19 @@ def start_validation():
     if not is_valid_url(url):
         return jsonify({'error': 'Invalid URL format'}), 400
 
-    if not report_path or not Path(report_path).exists():
-        return jsonify({'error': 'Report file not found'}), 400
+    # For Nmap-only mode, report is optional
+    alerts = []
+    if not nmap_only:
+        if not report_path or not Path(report_path).exists():
+            return jsonify({'error': 'Report file not found'}), 400
+
+        try:
+            alerts = parse_zap_report(report_path)
+        except Exception as e:
+            return jsonify({'error': f'Failed to parse report: {str(e)}'}), 400
+
+        if not alerts:
+            return jsonify({'error': 'No alerts found in the report'}), 400
 
     # Check device connectivity before proceeding
     is_reachable, error_msg = check_device_connection(url)
@@ -361,17 +480,14 @@ def start_validation():
                       '3) There are no firewall rules blocking the connection'
         }), 503
 
-    try:
-        alerts = parse_zap_report(report_path)
-    except Exception as e:
-        return jsonify({'error': f'Failed to parse report: {str(e)}'}), 400
-
-    if not alerts:
-        return jsonify({'error': 'No alerts found in the report'}), 400
-
     # Create session
     session_id = str(uuid.uuid4())
-    session = ValidationSession(session_id, alerts, url, report_path)
+    session = ValidationSession(
+        session_id, alerts, url, report_path,
+        nmap_enabled=nmap_enabled,
+        nmap_scan_types=nmap_scan_types,
+        nmap_only=nmap_only
+    )
     sessions[session_id] = session
 
     # Start validation in background thread
@@ -381,7 +497,8 @@ def start_validation():
     return jsonify({
         'success': True,
         'session_id': session_id,
-        'total': session.total
+        'total': session.total,
+        'nmap_only': nmap_only
     })
 
 
@@ -415,7 +532,8 @@ def get_status(session_id: str):
         'current_endpoint': session.current_endpoint,
         'stats': session.get_stats(),
         'logs': session.logs[-50:],  # Last 50 log entries
-        'results': session.get_results_json()
+        'results': session.get_results_json(),
+        'nmap_results': session.get_nmap_results_json()
     })
 
 
@@ -469,6 +587,102 @@ def export_report(session_id: str, format: str):
 
     except Exception as e:
         return jsonify({'error': f'Export failed: {str(e)}'}), 500
+
+
+@app.route('/api/export-nmap/<session_id>/<format>')
+def export_nmap_report(session_id: str, format: str):
+    """Export Nmap results in various formats."""
+    if session_id not in sessions:
+        return jsonify({'error': 'Session not found'}), 404
+
+    session = sessions[session_id]
+
+    if not session.nmap_result:
+        return jsonify({'error': 'No Nmap results available'}), 400
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    output_dir = app.config['OUTPUT_FOLDER']
+
+    try:
+        from .nmap_scanner import generate_nmap_html_report, generate_nmap_csv_report
+
+        if format == 'html':
+            filename = f"nmap_scan_report_{timestamp}.html"
+            filepath = output_dir / filename
+            generate_nmap_html_report(session.nmap_result, str(filepath))
+            return send_file(filepath, as_attachment=True, download_name=filename)
+
+        elif format == 'csv':
+            filename = f"nmap_scan_report_{timestamp}.csv"
+            filepath = output_dir / filename
+            generate_nmap_csv_report(session.nmap_result, str(filepath))
+            return send_file(filepath, as_attachment=True, download_name=filename)
+
+        else:
+            return jsonify({'error': 'Invalid format. Use html or csv'}), 400
+
+    except Exception as e:
+        return jsonify({'error': f'Export failed: {str(e)}'}), 500
+
+
+@app.route('/api/nmap-profiles')
+def nmap_profiles():
+    """Get available Nmap scan profiles."""
+    try:
+        from .nmap_scanner import get_scan_profiles, NMAP_AVAILABLE
+        if not NMAP_AVAILABLE:
+            return jsonify({'error': 'Nmap module not available'}), 400
+        return jsonify({'profiles': get_scan_profiles()})
+    except ImportError:
+        return jsonify({'error': 'Nmap module not installed'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/nmap-status')
+def nmap_status():
+    """Check if Nmap is available on the system."""
+    try:
+        from .nmap_scanner import NMAP_AVAILABLE
+        if not NMAP_AVAILABLE:
+            return jsonify({
+                'available': False,
+                'reason': 'python-nmap not installed. Run: pip install python-nmap'
+            })
+
+        from .nmap_scanner import NmapScanner
+        try:
+            scanner = NmapScanner()
+            if scanner.check_nmap_installed():
+                return jsonify({
+                    'available': True,
+                    'reason': 'Nmap is installed and ready'
+                })
+            else:
+                return jsonify({
+                    'available': False,
+                    'reason': 'Nmap not found. Install from nmap.org'
+                })
+        except RuntimeError as e:
+            return jsonify({
+                'available': False,
+                'reason': 'Nmap not installed. Download from nmap.org'
+            })
+        except Exception as e:
+            return jsonify({
+                'available': False,
+                'reason': f'Nmap error: {str(e)[:50]}'
+            })
+    except ImportError:
+        return jsonify({
+            'available': False,
+            'reason': 'Nmap module not available'
+        })
+    except Exception as e:
+        return jsonify({
+            'available': False,
+            'reason': str(e)[:50]
+        })
 
 
 @app.route('/api/clear/<session_id>', methods=['POST'])

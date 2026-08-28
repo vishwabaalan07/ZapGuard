@@ -287,6 +287,263 @@ body {
     filter: brightness(1.1);
 }
 
+.btn-nmap {
+    background-color: #7c3aed;
+    color: white;
+}
+
+.btn-nmap:hover:not(:disabled) {
+    background-color: #8b5cf6;
+}
+
+/* Nmap Checkbox Styles */
+.nmap-row {
+    margin-top: 5px;
+}
+
+.nmap-options-container {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.nmap-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nmap-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: #7c3aed;
+    cursor: pointer;
+}
+
+.nmap-checkbox:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.nmap-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.nmap-status {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.nmap-status.available {
+    color: var(--success-color);
+}
+
+.nmap-status.unavailable {
+    color: var(--warning-color);
+}
+
+/* Nmap Scan Panel */
+.nmap-scan-panel {
+    margin: 10px 15px;
+    padding: 15px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(139, 92, 246, 0.05));
+    border: 1px solid rgba(124, 58, 237, 0.3);
+    border-radius: 10px;
+}
+
+.nmap-scan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(124, 58, 237, 0.2);
+}
+
+.nmap-scan-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #a78bfa;
+}
+
+.nmap-scan-count {
+    font-size: 12px;
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.2);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+/* Scan Type Grid with Checkboxes */
+.nmap-scan-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.nmap-scan-grid::-webkit-scrollbar {
+    width: 6px;
+}
+
+.nmap-scan-grid::-webkit-scrollbar-track {
+    background: rgba(124, 58, 237, 0.1);
+    border-radius: 3px;
+}
+
+.nmap-scan-grid::-webkit-scrollbar-thumb {
+    background: rgba(124, 58, 237, 0.4);
+    border-radius: 3px;
+}
+
+.nmap-scan-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nmap-scan-item:hover {
+    background: var(--bg-tertiary);
+    border-color: rgba(124, 58, 237, 0.4);
+    transform: translateY(-1px);
+}
+
+.nmap-scan-item.selected {
+    background: rgba(124, 58, 237, 0.15);
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+}
+
+.nmap-scan-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: #7c3aed;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.nmap-scan-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.nmap-scan-item-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.nmap-scan-item-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nmap-scan-item-time {
+    font-size: 10px;
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 4px;
+    display: inline-block;
+}
+
+/* Nmap Progress Section */
+.nmap-progress-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(124, 58, 237, 0.2);
+}
+
+.nmap-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.nmap-progress-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #a78bfa;
+}
+
+.nmap-progress-status {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nmap-progress-status::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: #7c3aed;
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.nmap-progress-status.completed::before {
+    background: var(--success-color);
+    animation: none;
+}
+
+.nmap-progress-bar-container {
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.nmap-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #7c3aed, #a78bfa);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.nmap-progress-bar.indeterminate {
+    width: 30%;
+    animation: indeterminate 1.5s infinite ease-in-out;
+}
+
+@keyframes indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+}
+
+.nmap-progress-detail {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
 /* ========== Action Buttons ========== */
 .action-buttons {
     display: flex;

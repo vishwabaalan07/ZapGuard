@@ -23,7 +23,8 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QFileDialog, QProgressBar,
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
     QTextEdit, QMessageBox, QGraphicsDropShadowEffect, QSizePolicy,
-    QComboBox, QSplitter, QScrollArea, QGroupBox
+    QComboBox, QSplitter, QScrollArea, QGroupBox, QCheckBox, QListWidget,
+    QListWidgetItem, QAbstractItemView
 )
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QFont, QColor, QIcon, QPixmap, QPainter, QBrush, QPen, QLinearGradient, QPainterPath
@@ -336,9 +337,12 @@ class ZapGuardWindow(QMainWindow):
         self.start_time = None
         self.is_running = False
         self._dark_mode = True
+        self.nmap_result = None
+        self.nmap_scanner = None
 
         self._setup_ui()
         self._apply_theme()
+        self._check_nmap_availability()
 
     def _apply_theme(self):
         theme = THEMES['dark'] if self._dark_mode else THEMES['light']
@@ -748,6 +752,124 @@ class ZapGuardWindow(QMainWindow):
         output_row.addWidget(output_btn)
 
         config_layout.addLayout(output_row)
+
+        # Nmap Scan Options
+        nmap_row = QHBoxLayout()
+        nmap_row.addSpacing(70)  # Align with other inputs
+
+        nmap_checkbox_style = """
+            QCheckBox {
+                color: #94a3b8;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 2px solid #475569;
+                background: #1f2937;
+            }
+            QCheckBox::indicator:checked {
+                background: #7c3aed;
+                border-color: #7c3aed;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #8b5cf6;
+            }
+            QCheckBox:disabled {
+                color: #4b5563;
+            }
+        """
+
+        self.nmap_checkbox = QCheckBox("Enable Nmap Scan")
+        self.nmap_checkbox.setFont(QFont("Segoe UI", 9))
+        self.nmap_checkbox.setToolTip("Run Nmap port scan and SSL/TLS vulnerability check")
+        self.nmap_checkbox.setStyleSheet(nmap_checkbox_style)
+        self.nmap_checkbox.toggled.connect(self._on_nmap_checkbox_toggled)
+        nmap_row.addWidget(self.nmap_checkbox)
+
+        self.nmap_only_checkbox = QCheckBox("Nmap Only (Skip ZAP)")
+        self.nmap_only_checkbox.setFont(QFont("Segoe UI", 9))
+        self.nmap_only_checkbox.setToolTip("Run only Nmap scan, skip ZAP verification")
+        self.nmap_only_checkbox.setStyleSheet(nmap_checkbox_style)
+        self.nmap_only_checkbox.setEnabled(False)
+        nmap_row.addWidget(self.nmap_only_checkbox)
+
+        self.nmap_status_label = QLabel("")
+        self.nmap_status_label.setFont(QFont("Segoe UI", 8))
+        self.nmap_status_label.setStyleSheet("color: #64748b;")
+        nmap_row.addWidget(self.nmap_status_label)
+
+        nmap_row.addStretch()
+        config_layout.addLayout(nmap_row)
+
+        # Nmap Scan Type Selection
+        nmap_type_row = QHBoxLayout()
+        nmap_type_row.addSpacing(70)
+
+        nmap_type_label = QLabel("Scan Types:")
+        nmap_type_label.setFont(QFont("Segoe UI", 9))
+        nmap_type_label.setStyleSheet("color: #94a3b8;")
+        nmap_type_row.addWidget(nmap_type_label)
+
+        self.nmap_scan_list = QListWidget()
+        self.nmap_scan_list.setFont(QFont("Segoe UI", 9))
+        self.nmap_scan_list.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.nmap_scan_list.setMaximumHeight(120)
+        self.nmap_scan_list.setMinimumWidth(500)
+        self.nmap_scan_list.setStyleSheet("""
+            QListWidget {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(124, 58, 237, 0.1), stop:1 rgba(139, 92, 246, 0.05));
+                color: #e5e7eb;
+                border: 1px solid rgba(124, 58, 237, 0.3);
+                border-radius: 8px;
+                padding: 5px;
+                outline: none;
+            }
+            QListWidget::item {
+                padding: 8px 12px;
+                border-radius: 6px;
+                margin: 2px 0;
+                border: 1px solid transparent;
+            }
+            QListWidget::item:selected {
+                background: rgba(124, 58, 237, 0.3);
+                color: white;
+                border: 1px solid #7c3aed;
+            }
+            QListWidget::item:hover {
+                background: rgba(124, 58, 237, 0.15);
+                border: 1px solid rgba(124, 58, 237, 0.3);
+            }
+            QListWidget::item:selected:hover {
+                background: rgba(124, 58, 237, 0.4);
+            }
+            QScrollBar:vertical {
+                background: rgba(124, 58, 237, 0.1);
+                width: 8px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(124, 58, 237, 0.4);
+                border-radius: 4px;
+            }
+        """)
+        self.nmap_scan_list.setEnabled(False)
+        nmap_type_row.addWidget(self.nmap_scan_list)
+
+        self.nmap_selected_label = QLabel("(0 selected)")
+        self.nmap_selected_label.setFont(QFont("Segoe UI", 9))
+        self.nmap_selected_label.setStyleSheet("""
+            color: #a78bfa;
+            background: rgba(124, 58, 237, 0.2);
+            padding: 4px 10px;
+            border-radius: 12px;
+        """)
+        self.nmap_scan_list.itemSelectionChanged.connect(self._update_nmap_selected_count)
+        nmap_type_row.addWidget(self.nmap_selected_label)
+
+        nmap_type_row.addStretch()
+        config_layout.addLayout(nmap_type_row)
+
         main_layout.addLayout(config_layout)
 
         # ===== ACTION BUTTONS =====
@@ -864,6 +986,27 @@ class ZapGuardWindow(QMainWindow):
             QPushButton:disabled { background: #1f2937; color: #4b5563; }
         """)
         btn_row.addWidget(self.export_csv_btn)
+
+        btn_row.addSpacing(10)
+
+        self.export_nmap_btn = QPushButton("Nmap")
+        self.export_nmap_btn.setFont(QFont("Segoe UI", 9))
+        self.export_nmap_btn.setCursor(Qt.PointingHandCursor)
+        self.export_nmap_btn.setFixedSize(60, 32)
+        self.export_nmap_btn.setEnabled(False)
+        self.export_nmap_btn.clicked.connect(self._export_nmap)
+        self.export_nmap_btn.setToolTip("Export Nmap scan results")
+        self.export_nmap_btn.setStyleSheet("""
+            QPushButton {
+                background: #7c3aed;
+                color: white;
+                border: none;
+                border-radius: 6px;
+            }
+            QPushButton:hover { background: #8b5cf6; }
+            QPushButton:disabled { background: #1f2937; color: #4b5563; }
+        """)
+        btn_row.addWidget(self.export_nmap_btn)
 
         btn_row.addStretch()
         main_layout.addLayout(btn_row)
@@ -1319,6 +1462,7 @@ class ZapGuardWindow(QMainWindow):
         host = self.url_input.text().strip()
         url = self._get_full_url()
         report = self.report_input.text().strip()
+        nmap_only = self.nmap_only_checkbox.isChecked()
 
         if not host:
             QMessageBox.warning(self, "Error", "Please enter a target URL.")
@@ -1326,7 +1470,9 @@ class ZapGuardWindow(QMainWindow):
         if not is_valid_url(url):
             QMessageBox.warning(self, "Error", "Invalid URL format. Please enter a valid IP (e.g., 10.0.0.1) or domain (e.g., example.com).")
             return
-        if not report or not Path(report).exists():
+
+        # ZAP report required unless Nmap-only mode
+        if not nmap_only and (not report or not Path(report).exists()):
             QMessageBox.warning(self, "Error", "Please select a valid ZAP report file.")
             return
 
@@ -1350,6 +1496,15 @@ class ZapGuardWindow(QMainWindow):
             return
 
         self._log("Device is reachable. Proceeding...")
+
+        # Handle Nmap-only mode
+        if nmap_only:
+            self._clear_results()
+            self._log("Nmap-only mode - skipping ZAP verification")
+            self.alerts = []
+            self._run_nmap_scan(url)
+            self._set_status("Completed", "#22c55e")
+            return
 
         self._clear_results()
         self._log("Parsing ZAP report...")
@@ -1490,10 +1645,14 @@ class ZapGuardWindow(QMainWindow):
 
         if failed == 0:
             self._set_status("Passed", "#22c55e")
-            self._log(f"Completed: {passed} passed")
+            self._log(f"ZAP Verification: {passed} passed")
         else:
             self._set_status("Issues Found", "#ef4444")
-            self._log(f"Completed: {failed} failed, {passed} passed")
+            self._log(f"ZAP Verification: {failed} failed, {passed} passed")
+
+        # Run Nmap scan after ZAP validation if enabled
+        if self.nmap_checkbox.isChecked():
+            self._run_nmap_scan(self._get_full_url())
 
     def _export_html(self):
         from .reports import generate_html_report
@@ -1515,6 +1674,202 @@ class ZapGuardWindow(QMainWindow):
         generate_csv_report(self.results, str(out))
         self._log(f"CSV exported: {out.name}")
         QMessageBox.information(self, "Export", f"Report saved to:\n{out}")
+
+    def _export_nmap(self):
+        if not self.nmap_result:
+            QMessageBox.warning(self, "No Data", "No Nmap scan results available.\nRun a scan with Nmap enabled first.")
+            return
+        from .nmap_scanner import generate_nmap_html_report, generate_nmap_csv_report
+        out_html = Path(self.output_input.text()) / "nmap_scan_report.html"
+        out_csv = Path(self.output_input.text()) / "nmap_scan_report.csv"
+        generate_nmap_html_report(self.nmap_result, str(out_html))
+        generate_nmap_csv_report(self.nmap_result, str(out_csv))
+        self._log(f"Nmap reports exported: {out_html.name}, {out_csv.name}")
+        QMessageBox.information(self, "Export", f"Nmap reports saved to:\n{out_html}\n{out_csv}")
+
+    def _check_nmap_availability(self):
+        """Check if Nmap is available on the system."""
+        try:
+            from .nmap_scanner import NmapScanner, NMAP_AVAILABLE, get_scan_profiles
+            if not NMAP_AVAILABLE:
+                self.nmap_checkbox.setEnabled(False)
+                self.nmap_only_checkbox.setEnabled(False)
+                self.nmap_checkbox.setToolTip("python-nmap not installed. Run: pip install python-nmap")
+                self.nmap_status_label.setText("(python-nmap not installed)")
+                self.nmap_status_label.setStyleSheet("color: #f59e0b;")
+                return
+
+            scanner = NmapScanner()
+            if not scanner.check_nmap_installed():
+                self.nmap_checkbox.setEnabled(False)
+                self.nmap_only_checkbox.setEnabled(False)
+                self.nmap_checkbox.setToolTip("Nmap not found. Install from nmap.org")
+                self.nmap_status_label.setText("(Nmap not installed)")
+                self.nmap_status_label.setStyleSheet("color: #f59e0b;")
+            else:
+                self.nmap_status_label.setText("(Available)")
+                self.nmap_status_label.setStyleSheet("color: #4ade80;")
+                # Load scan profiles into list
+                self._load_nmap_scan_profiles()
+        except Exception as e:
+            self.nmap_checkbox.setEnabled(False)
+            self.nmap_only_checkbox.setEnabled(False)
+            self.nmap_status_label.setText(f"(Error: {str(e)[:30]})")
+            self.nmap_status_label.setStyleSheet("color: #ef4444;")
+
+    def _load_nmap_scan_profiles(self):
+        """Load Nmap scan profiles into the list widget."""
+        try:
+            from .nmap_scanner import get_scan_profiles
+            profiles = get_scan_profiles()
+            self.nmap_scan_list.clear()
+            for profile in profiles:
+                item = QListWidgetItem(f"{profile['name']} ({profile['estimated_time']})")
+                item.setData(Qt.UserRole, profile['id'])
+                item.setToolTip(profile['description'])
+                self.nmap_scan_list.addItem(item)
+            # Select "quick" by default
+            for i in range(self.nmap_scan_list.count()):
+                item = self.nmap_scan_list.item(i)
+                if item.data(Qt.UserRole) == 'quick':
+                    item.setSelected(True)
+                    break
+            self._update_nmap_selected_count()
+        except Exception as e:
+            self._log(f"Failed to load Nmap profiles: {e}")
+
+    def _on_nmap_checkbox_toggled(self, checked):
+        """Handle Nmap checkbox toggle."""
+        self.nmap_only_checkbox.setEnabled(checked)
+        self.nmap_scan_list.setEnabled(checked)
+        if not checked:
+            self.nmap_only_checkbox.setChecked(False)
+
+    def _update_nmap_selected_count(self):
+        """Update the selected scan count label."""
+        selected = len(self.nmap_scan_list.selectedItems())
+        self.nmap_selected_label.setText(f"({selected} selected)")
+
+    def _get_selected_nmap_scan_types(self):
+        """Get list of selected Nmap scan type IDs."""
+        selected = []
+        for item in self.nmap_scan_list.selectedItems():
+            selected.append(item.data(Qt.UserRole))
+        return selected if selected else ['quick']
+
+    def _run_nmap_scan(self, url: str):
+        """Run Nmap scan after ZAP validation."""
+        try:
+            from .nmap_scanner import NmapScanner, ScanType, SCAN_PROFILES
+
+            scan_type_ids = self._get_selected_nmap_scan_types()
+            scan_names = []
+            for st_id in scan_type_ids:
+                try:
+                    st = ScanType(st_id)
+                    scan_names.append(SCAN_PROFILES[st]["name"])
+                except ValueError:
+                    pass
+
+            # Show alert to user
+            QMessageBox.information(
+                self,
+                "Nmap Scan",
+                f"ZAP Verification complete.\n\n"
+                f"Starting Nmap scan(s):\n{', '.join(scan_names)}\n\n"
+                f"This may take several minutes depending on scan type."
+            )
+
+            self._log("=" * 40)
+            self._log("NMAP SCAN INITIATED")
+            self._log("=" * 40)
+            self._log(f"Selected scans: {', '.join(scan_names)}")
+            self._set_status("Nmap Scanning...", "#7c3aed")
+
+            # Set progress bar to indeterminate purple style for Nmap
+            self._set_nmap_progress_style()
+            self.progress_bar.setRange(0, 0)  # Indeterminate mode
+            self.progress_text.setText("...")
+            self.progress_detail.setText("Nmap scan in progress")
+            QApplication.processEvents()
+
+            self.nmap_scanner = NmapScanner(log_callback=self._nmap_log_callback)
+
+            # Convert scan type IDs to ScanType enums
+            scan_types = []
+            for st_id in scan_type_ids:
+                try:
+                    scan_types.append(ScanType(st_id))
+                except ValueError:
+                    self._log(f"Unknown scan type: {st_id}, skipping")
+
+            if not scan_types:
+                scan_types = [ScanType.QUICK]
+
+            # Run the scans
+            if len(scan_types) == 1:
+                self.nmap_result = self.nmap_scanner.run_scan(url, scan_types[0])
+            else:
+                self.nmap_result = self.nmap_scanner.run_multiple_scans(url, scan_types, sequential=True)
+
+            QApplication.processEvents()
+
+            # Reset progress bar style
+            self._reset_progress_style()
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(100)
+            self.progress_text.setText("100%")
+
+            if self.nmap_result.error:
+                self._log(f"Nmap error: {self.nmap_result.error}")
+                self.progress_detail.setText("Nmap scan failed")
+            else:
+                self._log(f"Found {len(self.nmap_result.ports)} open ports")
+                if self.nmap_result.ssl_findings:
+                    self._log(f"SSL/TLS findings: {len(self.nmap_result.ssl_findings)}")
+                self.progress_detail.setText(f"Nmap: {len(self.nmap_result.ports)} ports, {len(self.nmap_result.ssl_findings)} findings")
+
+                # Enable Nmap export button
+                self.export_nmap_btn.setEnabled(True)
+
+            self._log(f"Nmap scan completed in {self.nmap_result.scan_time:.1f}s")
+
+        except ImportError as e:
+            self._log(f"Nmap module error: {e}")
+            self._reset_progress_style()
+        except Exception as e:
+            self._log(f"Nmap scan failed: {e}")
+            self._reset_progress_style()
+
+    def _nmap_log_callback(self, message: str):
+        """Log callback for Nmap that also updates progress detail."""
+        self._log(message)
+        # Update progress detail based on log message
+        if "Running" in message and "scan" in message.lower():
+            self.progress_detail.setText(message[:60])
+        elif "Found" in message:
+            self.progress_detail.setText(message[:60])
+        QApplication.processEvents()
+
+    def _set_nmap_progress_style(self):
+        """Set progress bar to purple Nmap style."""
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                background: rgba(124, 58, 237, 0.2);
+                border: 1px solid rgba(124, 58, 237, 0.3);
+                border-radius: 3px;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #7c3aed, stop:1 #a78bfa);
+                border-radius: 2px;
+            }
+        """)
+        self.progress_text.setStyleSheet("color: #a78bfa;")
+
+    def _reset_progress_style(self):
+        """Reset progress bar to default style."""
+        self.progress_bar.setStyleSheet("")
+        self.progress_text.setStyleSheet("color: #3b82f6;")
 
 
 def main():
