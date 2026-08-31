@@ -33,119 +33,55 @@ except ImportError:
 
 
 class ScanType(Enum):
-    # Standard scan types matching Zenmap profiles
-    INTENSE = "intense"
-    INTENSE_UDP = "intense_udp"
-    INTENSE_ALL_TCP = "intense_all_tcp"
-    INTENSE_NO_PING = "intense_no_ping"
-    PING = "ping"
+    """Essential scan types - trimmed for efficiency."""
     QUICK = "quick"
-    QUICK_PLUS = "quick_plus"
-    QUICK_TRACEROUTE = "quick_traceroute"
     REGULAR = "regular"
-    SLOW_COMPREHENSIVE = "slow_comprehensive"
-    # Custom scan types
+    SERVICE_DETECTION = "service_detection"
     SSL_ONLY = "ssl_only"
-    BASIC = "basic"
+    FULL = "full"
 
 
 # Scan type configurations with nmap arguments
 SCAN_PROFILES = {
-    ScanType.INTENSE: {
-        "name": "Intense Scan",
-        "description": "Comprehensive scan with version detection, scripts, and OS detection",
-        "args": "-T4 -A -v",
-        "ports": None,  # Default ports
-        "requires_root": True,
-        "estimated_time": "5-15 min"
-    },
-    ScanType.INTENSE_UDP: {
-        "name": "Intense Scan + UDP",
-        "description": "Intense scan including UDP ports (slower)",
-        "args": "-sS -sU -T4 -A -v",
-        "ports": None,
-        "requires_root": True,
-        "estimated_time": "15-30 min"
-    },
-    ScanType.INTENSE_ALL_TCP: {
-        "name": "Intense Scan, All TCP Ports",
-        "description": "Scan all 65535 TCP ports with version detection",
-        "args": "-p 1-65535 -T4 -A -v",
-        "ports": "1-65535",
-        "requires_root": True,
-        "estimated_time": "20-60 min"
-    },
-    ScanType.INTENSE_NO_PING: {
-        "name": "Intense Scan, No Ping",
-        "description": "Intense scan without host discovery (for firewalled hosts)",
-        "args": "-T4 -A -v -Pn",
-        "ports": None,
-        "requires_root": True,
-        "estimated_time": "5-15 min"
-    },
-    ScanType.PING: {
-        "name": "Ping Scan",
-        "description": "Quick scan to check if host is alive",
-        "args": "-sn",
-        "ports": None,
-        "requires_root": False,
-        "estimated_time": "< 1 min"
-    },
     ScanType.QUICK: {
         "name": "Quick Scan",
-        "description": "Fast scan of common ports only",
+        "description": "Fast scan of top 100 ports",
         "args": "-T4 -F",
-        "ports": None,  # -F uses top 100 ports
-        "requires_root": False,
-        "estimated_time": "< 1 min"
-    },
-    ScanType.QUICK_PLUS: {
-        "name": "Quick Scan Plus",
-        "description": "Quick scan with version detection and scripts",
-        "args": "-sV -T4 -O -F --version-light",
-        "ports": None,
-        "requires_root": True,
-        "estimated_time": "1-3 min"
-    },
-    ScanType.QUICK_TRACEROUTE: {
-        "name": "Quick Traceroute",
-        "description": "Fast scan with traceroute",
-        "args": "-sn --traceroute",
         "ports": None,
         "requires_root": False,
         "estimated_time": "< 1 min"
     },
     ScanType.REGULAR: {
         "name": "Regular Scan",
-        "description": "Standard scan of common ports",
-        "args": "-T3",
+        "description": "Standard scan with service detection on common ports",
+        "args": "-sV -T4 --open",
+        "ports": "21-25,53,80,110,143,443,445,993,995,3306,3389,5432,8080,8443",
+        "requires_root": False,
+        "estimated_time": "1-3 min"
+    },
+    ScanType.SERVICE_DETECTION: {
+        "name": "Service Detection",
+        "description": "Detailed service/version detection on all common ports",
+        "args": "-sV -sC -T4 --open",
         "ports": None,
         "requires_root": False,
-        "estimated_time": "1-5 min"
-    },
-    ScanType.SLOW_COMPREHENSIVE: {
-        "name": "Slow Comprehensive Scan",
-        "description": "Very thorough scan with all options (slowest but most complete)",
-        "args": "-sS -sU -T4 -A -v -PE -PP -PS80,443 -PA3389 -PU40125 -PY -g 53 --script \"default or (discovery and safe)\"",
-        "ports": None,
-        "requires_root": True,
-        "estimated_time": "30-90 min"
+        "estimated_time": "3-8 min"
     },
     ScanType.SSL_ONLY: {
-        "name": "SSL/TLS Scan Only",
-        "description": "Check SSL/TLS vulnerabilities on HTTPS ports",
+        "name": "SSL/TLS Scan",
+        "description": "Check SSL/TLS vulnerabilities (Heartbleed, POODLE, weak ciphers)",
         "args": "-sV --script ssl-enum-ciphers,ssl-cert,ssl-heartbleed,ssl-poodle,ssl-dh-params",
         "ports": "443,8443",
         "requires_root": False,
         "estimated_time": "1-3 min"
     },
-    ScanType.BASIC: {
-        "name": "Basic Port Scan",
-        "description": "Simple port scan with service detection",
-        "args": "-sV -sT --open -T4",
-        "ports": "21-25,53,80,110,143,443,445,993,995,3306,3389,5432,8080,8443",
+    ScanType.FULL: {
+        "name": "Full Scan",
+        "description": "Comprehensive scan with OS detection, scripts, and version info",
+        "args": "-T4 -A -v --open",
+        "ports": None,
         "requires_root": False,
-        "estimated_time": "1-2 min"
+        "estimated_time": "5-15 min"
     }
 }
 
@@ -686,10 +622,9 @@ class NmapScanner:
                     self._log(f"Host status: {result.host_status}")
 
             else:
-                # For ping scans, host might not be in all_hosts if down
-                if scan_type == ScanType.PING:
-                    result.host_status = "down"
-                    self._log("Host appears to be down or not responding to ping")
+                # Host not found in results
+                result.host_status = "down"
+                self._log("Host appears to be down or not responding")
 
         except nmap.PortScannerError as e:
             result.error = f"Nmap error: {str(e)}"
