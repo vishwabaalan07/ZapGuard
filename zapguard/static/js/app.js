@@ -409,8 +409,11 @@ class ZapGuardApp {
 
             // Check if completed
             if (data.status === 'completed' || data.status === 'stopped') {
+                // Always stop Nmap progress when session completes
                 this.nmapScanning = false;
                 this.nmapAlertShown = false;
+                this.completeNmapProgress();  // Ensure progress bar stops
+
                 this.stopPolling();
                 this.setStatus(data.status === 'completed' ? 'success' : 'stopped',
                               data.status === 'completed' ? 'Completed' : 'Stopped');
@@ -827,14 +830,21 @@ class ZapGuardApp {
     }
 
     completeNmapProgress() {
+        // Stop the indeterminate animation
         if (this.nmapProgressBar) {
             this.nmapProgressBar.classList.remove('indeterminate');
             this.nmapProgressBar.style.width = '100%';
+            this.nmapProgressBar.style.animation = 'none';  // Force stop any animation
         }
         if (this.nmapProgressStatus) {
             this.nmapProgressStatus.textContent = 'Completed';
             this.nmapProgressStatus.classList.add('completed');
         }
+        if (this.nmapProgressDetail) {
+            this.nmapProgressDetail.textContent = 'Scan finished';
+        }
+        // Mark scanning as done
+        this.nmapScanning = false;
     }
 
     getSelectedNmapScanTypes() {

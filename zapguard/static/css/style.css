@@ -528,8 +528,13 @@ body {
 }
 
 .nmap-progress-bar.indeterminate {
-    width: 30%;
+    width: 30% !important;
     animation: indeterminate 1.5s infinite ease-in-out;
+}
+
+.nmap-progress-bar:not(.indeterminate) {
+    animation: none !important;
+    transform: translateX(0) !important;
 }
 
 @keyframes indeterminate {
